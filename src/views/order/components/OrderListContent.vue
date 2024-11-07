@@ -13,7 +13,7 @@
           inset
           class="order-item"
         >
-          <van-cell :title="order.shopName" value="待付款" />
+          <van-cell :title="order.shopName" :value="getStatusText(order.status)" />
           <van-card
             v-for="goods in order.goods"
             :key="goods.id"
@@ -70,6 +70,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
+import { getOrderList } from '@/api/order'
 
 const props = defineProps({
   type: {
@@ -83,55 +84,76 @@ const loading = ref(false)
 const finished = ref(false)
 const refreshing = ref(false)
 const orderList = ref([])
+const pageNum = ref(1)
+const pageSize = 10
 
-// 模拟订单数据
-const mockOrders = [
-  {
-    id: 1,
-    shopName: '水果店',
-    status: 1,
-    totalPrice: 99.99,
-    totalQuantity: 2,
-    goods: [
-      {
-        id: 1,
-        title: '新鲜水果',
-        price: 49.99,
-        quantity: 2,
-        thumb: 'https://img.yzcdn.cn/vant/apple-1.jpg'
-      }
-    ]
-  }
-]
-
-const onLoad = () => {
-  // 模拟加载数据
-  setTimeout(() => {
+// 加载订单列表
+const loadOrders = async () => {
+  try {
+    const res = await getOrderList({
+      type: props.type,
+      pageNum: pageNum.value,
+      pageSize
+    })
+    
     if (refreshing.value) {
       orderList.value = []
       refreshing.value = false
     }
     
-    orderList.value.push(...mockOrders)
+    orderList.value.push(...res.list)
+    pageNum.value++
+    
+    if (res.list.length < pageSize) {
+      finished.value = true
+    }
+  } catch (error) {
+    console.error('加载订单列表失败:', error)
+  } finally {
     loading.value = false
-    finished.value = true
-  }, 1000)
+  }
+}
+
+const onLoad = () => {
+  loadOrders()
 }
 
 const onRefresh = () => {
   finished.value = false
-  loading.value = true
-  onLoad()
+  pageNum.value = 1
+  loadOrders()
 }
 
+// 获取状态文本
+const getStatusText = (status) => {
+  const statusMap = {
+    1: '待付款',
+    2: '待发货',
+    3: '待收货',
+    4: '待评价',
+    5: '已完成',
+    6: '已取消'
+  }
+  return statusMap[status] || ''
+}
+
+// 支付订单
 const onPay = (order) => {
-  showToast('跳转支付')
+  router.push(`/order/pay/${order.id}`)
 }
 
-const onConfirm = (order) => {
-  showToast('确认收货')
+// 确认收货
+const onConfirm = async (order) => {
+  try {
+    // TODO: 调用确认收货接口
+    showToast('确认收货成功')
+    loadOrders()
+  } catch (error) {
+    console.error('确认收货失败:', error)
+  }
 }
 
+// 查看订单详情
 const onViewDetail = (order) => {
   router.push(`/order/detail/${order.id}`)
 }

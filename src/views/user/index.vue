@@ -2,21 +2,21 @@
   <div class="user">
     <!-- 用户信息卡片 -->
     <div class="user-card">
-      <template v-if="isLogin">
+      <template v-if="userStore.isLogin">
         <van-row class="user-info">
           <van-col span="8">
             <van-image
               round
               width="4rem"
               height="4rem"
-              :src="userInfo.avatar"
+              :src="userStore.userInfo?.avatar"
               error-icon="contact"
             />
           </van-col>
           <van-col span="16" class="info-content">
-            <div class="username">{{ userInfo.nickname }}</div>
-            <div class="user-id">ID: {{ userInfo.id }}</div>
-          </van-col>
+            <div class="username">{{ userStore.userInfo?.nickname }}</div>
+            <div class="user-id">ID: {{ userStore.userInfo?.id }}</div>
+          </div>
         </van-row>
       </template>
       <template v-else>
@@ -44,7 +44,36 @@
           :key="index"
           :icon="item.icon"
           :text="item.text"
+          :badge="orderCounts[item.type] || ''"
           :to="item.path"
+        />
+      </van-grid>
+    </van-cell-group>
+
+    <!-- 我的资产 -->
+    <van-cell-group class="assets-card" inset>
+      <van-grid :border="false" :column-num="4">
+        <van-grid-item
+          icon="balance-o"
+          text="余额"
+          :value="userInfo.balance || '0.00'"
+        />
+        <van-grid-item
+          icon="coupon-o"
+          text="优惠券"
+          :value="userInfo.couponCount || '0'"
+          to="/coupon"
+        />
+        <van-grid-item
+          icon="point-gift-o"
+          text="积分"
+          :value="userInfo.points || '0'"
+        />
+        <van-grid-item
+          icon="star-o"
+          text="收藏"
+          :value="userInfo.collectCount || '0'"
+          to="/collect"
         />
       </van-grid>
     </van-cell-group>
@@ -61,29 +90,67 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '@/store'
+import { getOrderCounts } from '@/api/order'
 
 const router = useRouter()
-const isLogin = ref(false)
+const userStore = useUserStore()
+
+// 用户信息
 const userInfo = ref({
-  id: '10001',
-  nickname: '测试用户',
-  avatar: ''
+  balance: '0.00',
+  couponCount: 0,
+  points: 0,
+  collectCount: 0
 })
 
 // 订单类型
 const orderTypes = [
-  { icon: 'pending-payment', text: '待付款', path: '/order/list?type=1' },
-  { icon: 'logistics', text: '待发货', path: '/order/list?type=2' },
-  { icon: 'send-gift', text: '待收货', path: '/order/list?type=3' },
-  { icon: 'comment', text: '待评价', path: '/order/list?type=4' }
+  { icon: 'pending-payment', text: '待付款', type: 1, path: '/order/list?type=1' },
+  { icon: 'logistics', text: '待发货', type: 2, path: '/order/list?type=2' },
+  { icon: 'send-gift', text: '待收货', type: 3, path: '/order/list?type=3' },
+  { icon: 'comment', text: '待评价', type: 4, path: '/order/list?type=4' }
 ]
+
+// 订单数量统计
+const orderCounts = ref({})
+
+// 加载订单统计
+const loadOrderCounts = async () => {
+  try {
+    const res = await getOrderCounts()
+    orderCounts.value = res
+  } catch (error) {
+    console.error('获取订单统计失败:', error)
+  }
+}
+
+// 加载用户信息
+const loadUserInfo = async () => {
+  if (!userStore.isLogin) return
+  
+  try {
+    const res = await userStore.getUserInfo()
+    userInfo.value = res
+  } catch (error) {
+    console.error('获取用户信息失败:', error)
+  }
+}
 
 // 去登录
 const goToLogin = () => {
   router.push('/login')
 }
+
+// 初始化数据
+onMounted(() => {
+  if (userStore.isLogin) {
+    loadUserInfo()
+    loadOrderCounts()
+  }
+})
 </script>
 
 <style scoped lang="scss">
@@ -118,7 +185,8 @@ const goToLogin = () => {
     }
   }
 
-  .order-card {
+  .order-card,
+  .assets-card {
     margin-top: 12px;
   }
 

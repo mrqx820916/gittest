@@ -33,7 +33,6 @@ const searchResult = ref([])
 
 const isEdit = computed(() => !!route.query.id)
 
-// 模拟地址数据
 const addressInfo = ref({
   name: '',
   tel: '',
@@ -70,8 +69,8 @@ const onDelete = async () => {
     // TODO: 调用删除地址接口
     showToast('删除成功')
     router.back()
-  } catch (error) {
-    console.log('取消删除')
+  } catch {
+    // 取消删除
   }
 }
 

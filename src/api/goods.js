@@ -8,17 +8,17 @@ export function getGoodsList(params) {
   })
 }
 
+export function getGoodsDetail(id) {
+  return request({
+    url: `/goods/${id}`,
+    method: 'get'
+  })
+}
+
 export function searchGoods(params) {
   return request({
     url: '/goods/search',
     method: 'get',
     params
-  })
-}
-
-export function getGoodsDetail(id) {
-  return request({
-    url: `/goods/${id}`,
-    method: 'get'
   })
 } 

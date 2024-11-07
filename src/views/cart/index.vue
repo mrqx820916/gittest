@@ -1,8 +1,9 @@
 <template>
   <div class="cart">
+    <!-- 导航栏 -->
     <van-nav-bar title="购物车" />
     
-    <!-- 购物车为空时显示 -->
+    <!-- 购物车为空 -->
     <van-empty
       v-if="!cartList.length"
       description="购物车还是空的"
@@ -16,7 +17,7 @@
     <!-- 购物车列表 -->
     <template v-else>
       <van-checkbox-group v-model="checkedGoods" class="card-list">
-        <van-swipe-cell v-for="item in cartList" :key="item.id">
+        <van-swipe-cell v-for="(item, index) in cartList" :key="item.id">
           <van-card
             :price="item.price"
             :title="item.title"
@@ -31,7 +32,7 @@
                 v-model="item.quantity"
                 :min="1"
                 :max="99"
-                @change="updateQuantity(item)"
+                @change="updateQuantity(index, $event)"
               />
             </template>
             
@@ -46,7 +47,7 @@
               text="删除"
               type="danger"
               class="delete-button"
-              @click="removeFromCart(item)"
+              @click="removeFromCart(index)"
             />
           </template>
         </van-swipe-cell>
@@ -70,14 +71,15 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { showToast } from 'vant'
-import { useCartStore } from '@/store/modules/cart'
+import { showToast, showConfirmDialog } from 'vant'
+import { useCartStore, useUserStore } from '@/store'
 
 const router = useRouter()
 const cartStore = useCartStore()
+const userStore = useUserStore()
 
-const checkedGoods = ref([])
 const cartList = computed(() => cartStore.items)
+const checkedGoods = ref([])
 
 // 计算总价
 const totalPrice = computed(() => {
@@ -108,15 +110,22 @@ const submitButtonText = computed(() => {
 })
 
 // 更新商品数量
-const updateQuantity = (item) => {
-  // TODO: 调用接口更新购物车
-  showToast('更新成功')
+const updateQuantity = (index, quantity) => {
+  cartStore.updateQuantity(index, quantity)
 }
 
 // 从购物车移除
-const removeFromCart = (item) => {
-  cartStore.removeFromCart(item.id)
-  showToast('删除成功')
+const removeFromCart = async (index) => {
+  try {
+    await showConfirmDialog({
+      title: '提示',
+      message: '确定要删除这个商品吗？'
+    })
+    cartStore.removeItem(index)
+    showToast('删除成功')
+  } catch {
+    // 取消删除
+  }
 }
 
 // 全选/取消全选
@@ -126,12 +135,17 @@ const toggleAll = () => {
 
 // 提交订单
 const onSubmit = () => {
+  if (!userStore.isLogin) {
+    router.push('/login')
+    return
+  }
+  
   if (!checkedGoods.value.length) {
     showToast('请选择商品')
     return
   }
   
-  // TODO: 跳转到订单确认页
+  // 跳转到订单确认页
   router.push({
     path: '/order/confirm',
     query: {

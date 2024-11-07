@@ -33,25 +33,16 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { showToast } from 'vant'
+import { getMyCoupons } from '@/api/coupon'
 
 const router = useRouter()
 const active = ref(0)
 const chosenCoupon = ref(-1)
 
-// 模拟优惠券数据
-const availableCoupons = ref([
-  {
-    id: 1,
-    condition: '满50元可用',
-    description: '仅可购买水果类商品',
-    value: 500,
-    valueDesc: '5',
-    unitDesc: '元'
-  }
-])
-
+const availableCoupons = ref([])
 const usedCoupons = ref([])
 const expiredCoupons = ref([])
 
@@ -63,6 +54,21 @@ const onChange = (index) => {
   chosenCoupon.value = index
   router.back()
 }
+
+const loadCoupons = async () => {
+  try {
+    const res = await getMyCoupons()
+    availableCoupons.value = res.available
+    usedCoupons.value = res.used
+    expiredCoupons.value = res.expired
+  } catch (error) {
+    showToast('加载优惠券失败')
+  }
+}
+
+onMounted(() => {
+  loadCoupons()
+})
 </script>
 
 <style scoped lang="scss">

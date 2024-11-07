@@ -1,16 +1,16 @@
 import request from '@/utils/request'
 
-export function sendCode(data) {
+export function login(data) {
   return request({
-    url: '/user/sendCode',
+    url: '/user/login',
     method: 'post',
     data
   })
 }
 
-export function login(data) {
+export function sendCode(data) {
   return request({
-    url: '/user/login',
+    url: '/user/sendCode',
     method: 'post',
     data
   })

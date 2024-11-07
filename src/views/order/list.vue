@@ -44,5 +44,6 @@ const onClickLeft = () => {
 .order-list {
   min-height: 100vh;
   background: #f5f5f5;
+  padding-bottom: 50px;
 }
 </style> 

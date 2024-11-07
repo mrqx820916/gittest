@@ -33,4 +33,13 @@ export function getAvailableCoupons(params) {
     method: 'get',
     params
   })
+}
+
+// 使用优惠券
+export function useCoupon(id, data) {
+  return request({
+    url: `/coupon/${id}/use`,
+    method: 'post',
+    data
+  })
 } 

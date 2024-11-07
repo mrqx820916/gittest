@@ -13,13 +13,14 @@
     "vant": "^4.8.3",
     "vue": "^3.4.21",
     "vue-router": "^4.3.0",
-    "@vant/area-data": "^1.5.1"
+    "@vant/area-data": "^1.5.1",
+    "dayjs": "^1.11.10"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.4",
     "postcss": "^8.4.35",
     "postcss-pxtorem": "^6.1.0",
-    "sass": "1.69.7",
+    "sass": "^1.71.1",
     "vite": "^5.1.4",
     "amfe-flexible": "^2.2.1",
     "unplugin-vue-components": "^0.26.0",

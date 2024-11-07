@@ -3,6 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
 import Components from 'unplugin-vue-components/vite'
 import { VantResolver } from '@vant/auto-import-resolver'
+import postCssPxToRem from 'postcss-pxtorem'
 
 export default defineConfig({
   plugins: [
@@ -29,12 +30,17 @@ export default defineConfig({
   css: {
     preprocessorOptions: {
       scss: {
-        additionalData: `
-          @use "sass:math";
-          @use "sass:color";
-        `,
-        implementation: 'sass'
+        additionalData: '@import "@/styles/variables.scss";'
       }
+    },
+    postcss: {
+      plugins: [
+        postCssPxToRem({
+          rootValue: 37.5,
+          propList: ['*'],
+          selectorBlackList: ['.norem']
+        })
+      ]
     }
   }
 }) 

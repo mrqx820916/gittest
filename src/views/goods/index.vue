@@ -45,6 +45,40 @@
             />
           </van-cell-group>
         </van-tab>
+        <van-tab title="商品评价">
+          <div class="comment-list">
+            <div v-for="comment in comments" :key="comment.id" class="comment-item">
+              <div class="user-info">
+                <van-image
+                  round
+                  width="40"
+                  height="40"
+                  :src="comment.user.avatar"
+                />
+                <div class="user-name">{{ comment.user.nickname }}</div>
+                <div class="comment-time">{{ formatDate(comment.createdAt) }}</div>
+              </div>
+              <div class="comment-content">
+                <rate-component v-model="comment.rating" readonly />
+                <div class="comment-text">{{ comment.content }}</div>
+                <div class="comment-images" v-if="comment.images?.length">
+                  <van-image
+                    v-for="(image, index) in comment.images"
+                    :key="index"
+                    width="80"
+                    height="80"
+                    :src="image"
+                    @click="previewImage(comment.images, index)"
+                  />
+                </div>
+                <div class="comment-reply" v-if="comment.reply">
+                  <div class="reply-title">商家回复：</div>
+                  <div class="reply-content">{{ comment.reply }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </van-tab>
       </van-tabs>
     </div>
 
@@ -52,6 +86,11 @@
     <van-goods-action>
       <van-goods-action-icon icon="chat-o" text="客服" @click="onClickService" />
       <van-goods-action-icon icon="cart-o" text="购物车" :badge="cartCount" to="/cart" />
+      <van-goods-action-icon 
+        :icon="isCollected ? 'star' : 'star-o'"
+        :text="isCollected ? '已收藏' : '收藏'"
+        @click="toggleCollect"
+      />
       <van-goods-action-button
         type="warning"
         text="加入购物车"
@@ -64,105 +103,100 @@
       />
     </van-goods-action>
 
-    <!-- SKU 弹出层 -->
+    <!-- SKU 选择器 -->
     <van-action-sheet v-model:show="showSku" title="商品规格">
-      <div class="sku-content">
-        <!-- 规格选择 -->
-        <div class="sku-group" v-for="(spec, index) in goods.specs" :key="index">
-          <div class="sku-group-title">{{ spec.name }}</div>
-          <div class="sku-group-content">
-            <van-button
-              v-for="item in spec.values"
-              :key="item"
-              :type="selectedSpecs[spec.name] === item ? 'danger' : 'default'"
-              size="small"
-              @click="selectSpec(spec.name, item)"
-            >
-              {{ item }}
-            </van-button>
-          </div>
-        </div>
-
-        <!-- 数量选择 -->
-        <div class="amount-picker">
-          <span class="label">购买数量</span>
-          <van-stepper v-model="buyAmount" :min="1" :max="99" />
-        </div>
-
-        <!-- 确认按钮 -->
-        <div class="sku-actions">
-          <van-button type="danger" block @click="confirmSku">确定</van-button>
-        </div>
+      <sku-selector
+        ref="skuSelector"
+        :specs="goods.specs"
+        @change="onSkuChange"
+      />
+      <div class="sku-stepper">
+        <span class="label">购买数量</span>
+        <van-stepper v-model="buyAmount" :min="1" :max="99" />
       </div>
+      <div class="sku-actions">
+        <van-button type="danger" block @click="confirmSku">确定</van-button>
+      </div>
+    </van-action-sheet>
+
+    <!-- 参数弹出层 -->
+    <van-action-sheet v-model:show="showParams" title="商品参数">
+      <van-cell-group>
+        <van-cell
+          v-for="(value, key) in goods.params"
+          :key="key"
+          :title="key"
+          :value="value"
+        />
+      </van-cell-group>
     </van-action-sheet>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { showToast } from 'vant'
-import { useCartStore } from '@/store/modules/cart'
+import { showToast, showImagePreview } from 'vant'
+import { useCartStore, useCollectStore } from '@/store'
+import { getGoodsDetail } from '@/api/goods'
+import { getGoodsComments } from '@/api/comment'
+import { formatDate } from '@/utils'
+import SkuSelector from '@/components/sku-selector.vue'
+import RateComponent from '@/components/rate.vue'
 
 const route = useRoute()
 const router = useRouter()
 const cartStore = useCartStore()
+const collectStore = useCollectStore()
 
-// 商品数据（模拟）
+// 商品数据
 const goods = ref({
-  id: 1,
-  title: '新鲜水果大礼包',
-  price: 99.99,
-  originalPrice: 129.99,
-  desc: '精选新鲜水果，品质保证',
-  sales: 1000,
-  images: [
-    'https://img.yzcdn.cn/vant/apple-1.jpg',
-    'https://img.yzcdn.cn/vant/apple-2.jpg'
-  ],
-  specs: [
-    {
-      name: '规格',
-      values: ['小份', '中份', '大份']
-    },
-    {
-      name: '套餐',
-      values: ['标准', '豪华', '尊享']
-    }
-  ],
-  params: {
-    '产地': '中国',
-    '保质期': '7天',
-    '储存条件': '常温'
-  },
-  detail: '<p>商品详情内容</p>'
+  images: [],
+  specs: [],
+  params: {}
 })
+
+// 评论数据
+const comments = ref([])
 
 // 状态管理
 const showSku = ref(false)
 const showParams = ref(false)
 const activeTab = ref(0)
 const buyAmount = ref(1)
-const selectedSpecs = ref({})
+const skuSelector = ref(null)
 const cartCount = computed(() => cartStore.totalCount)
+const isCollected = computed(() => collectStore.isCollected(route.params.id))
 
-// 选择规格
-const selectSpec = (name, value) => {
-  selectedSpecs.value[name] = value
+// 获取商品详情
+const loadGoodsDetail = async () => {
+  try {
+    const res = await getGoodsDetail(route.params.id)
+    goods.value = res
+  } catch (error) {
+    showToast('获取商品详情失败')
+  }
 }
 
-// 获取已选规格文本
-const selectedSku = computed(() => {
-  const specs = []
-  for (const [name, value] of Object.entries(selectedSpecs.value)) {
-    specs.push(`${name}:${value}`)
+// 获取商品评价
+const loadComments = async () => {
+  try {
+    const res = await getGoodsComments({
+      goodsId: route.params.id
+    })
+    comments.value = res.list
+  } catch (error) {
+    showToast('获取评价失败')
   }
-  return specs.length ? specs.join(';') : ''
-})
+}
 
-// 确认规格选择
+// SKU 相关
+const onSkuChange = (specs) => {
+  selectedSpecs.value = specs
+}
+
 const confirmSku = () => {
-  if (Object.keys(selectedSpecs.value).length < goods.value.specs.length) {
+  if (!skuSelector.value.isComplete) {
     showToast('请选择完整规格')
     return
   }
@@ -172,7 +206,7 @@ const confirmSku = () => {
     title: goods.value.title,
     price: goods.value.price,
     thumb: goods.value.images[0],
-    specs: selectedSpecs.value,
+    specs: skuSelector.value.selectedSpecs,
     quantity: buyAmount.value
   }
   
@@ -186,10 +220,39 @@ const onClickBuy = () => {
   showSku.value = true
 }
 
+// 收藏相关
+const toggleCollect = async () => {
+  try {
+    if (isCollected.value) {
+      await collectStore.cancelCollect(route.params.id)
+      showToast('已取消收藏')
+    } else {
+      await collectStore.addCollect(route.params.id)
+      showToast('收藏成功')
+    }
+  } catch (error) {
+    showToast('操作失败')
+  }
+}
+
+// 图片预览
+const previewImage = (images, index) => {
+  showImagePreview({
+    images,
+    startPosition: index
+  })
+}
+
 // 联系客服
 const onClickService = () => {
   showToast('联系客服')
 }
+
+// 初始化数据
+onMounted(() => {
+  loadGoodsDetail()
+  loadComments()
+})
 </script>
 
 <style scoped lang="scss">
@@ -257,40 +320,84 @@ const onClickService = () => {
     .detail-content {
       padding: 15px;
     }
+
+    .comment-list {
+      padding: 15px;
+
+      .comment-item {
+        padding: 15px 0;
+        border-bottom: 1px solid #eee;
+
+        &:last-child {
+          border-bottom: none;
+        }
+
+        .user-info {
+          display: flex;
+          align-items: center;
+          margin-bottom: 10px;
+
+          .user-name {
+            margin-left: 10px;
+            font-size: 14px;
+            color: #333;
+          }
+
+          .comment-time {
+            margin-left: auto;
+            font-size: 12px;
+            color: #999;
+          }
+        }
+
+        .comment-content {
+          .comment-text {
+            margin: 10px 0;
+            font-size: 14px;
+            color: #333;
+          }
+
+          .comment-images {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 10px;
+          }
+
+          .comment-reply {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+
+            .reply-title {
+              color: #999;
+              font-size: 12px;
+              margin-bottom: 5px;
+            }
+
+            .reply-content {
+              color: #666;
+              font-size: 14px;
+            }
+          }
+        }
+      }
+    }
   }
 
-  .sku-content {
-    padding: 20px 15px;
+  .sku-stepper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
 
-    .sku-group {
-      margin-bottom: 15px;
-
-      .sku-group-title {
-        margin-bottom: 10px;
-        font-size: 14px;
-      }
-
-      .sku-group-content {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-      }
+    .label {
+      font-size: 14px;
     }
+  }
 
-    .amount-picker {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin: 20px 0;
-
-      .label {
-        font-size: 14px;
-      }
-    }
-
-    .sku-actions {
-      margin-top: 20px;
-    }
+  .sku-actions {
+    padding: 15px;
   }
 }
 </style> 

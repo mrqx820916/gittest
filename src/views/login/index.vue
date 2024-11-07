@@ -59,8 +59,10 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
+import { useUserStore } from '@/store'
 
 const router = useRouter()
+const userStore = useUserStore()
 const form = ref({
   phone: '',
   code: ''
@@ -102,10 +104,14 @@ const sendCode = () => {
   startCountDown()
 }
 
-const onSubmit = () => {
-  // TODO: 调用登录接口
-  showToast('登录成功')
-  router.replace('/')
+const onSubmit = async () => {
+  try {
+    await userStore.login(form.value)
+    showToast('登录成功')
+    router.replace('/')
+  } catch (error) {
+    showToast('登录失败')
+  }
 }
 
 const wechatLogin = () => {

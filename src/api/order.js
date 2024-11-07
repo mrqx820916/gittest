@@ -30,6 +30,14 @@ export function cancelOrder(id) {
   })
 }
 
+export function payOrder(id, data) {
+  return request({
+    url: `/order/${id}/pay`,
+    method: 'post',
+    data
+  })
+}
+
 export function confirmOrder(id) {
   return request({
     url: `/order/${id}/confirm`,

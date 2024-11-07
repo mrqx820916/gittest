@@ -1,34 +1,36 @@
 <template>
   <div class="home">
-    <!-- 顶部搜索栏 -->
-    <van-search
-      v-model="searchValue"
-      placeholder="请输入搜索关键词"
-      shape="round"
-      @search="onSearch"
-    />
+    <!-- 搜索栏 -->
+    <div class="search-bar">
+      <van-search
+        v-model="keyword"
+        placeholder="请输入搜索关键词"
+        shape="round"
+        background="#fff"
+        @focus="onSearchFocus"
+      />
+    </div>
     
-    <!-- 骨架屏 -->
-    <van-skeleton title avatar :row="3" :loading="initialLoading">
-      <!-- 轮播图 -->
-      <van-swipe class="banner" :autoplay="3000" indicator-color="white">
-        <van-swipe-item v-for="item in banners" :key="item.id">
-          <img :src="item.image" lazy-load />
-        </van-swipe-item>
-      </van-swipe>
-      
-      <!-- 分类导航 -->
-      <van-grid :column-num="5" :border="false">
-        <van-grid-item
-          v-for="item in categories"
-          :key="item.id"
-          :icon="item.icon"
-          :text="item.name"
-          @click="onCategoryClick(item)"
-        />
-      </van-grid>
-      
-      <!-- 商品列表 -->
+    <!-- 轮播图 -->
+    <van-swipe class="banner" :autoplay="3000" indicator-color="white">
+      <van-swipe-item v-for="item in banners" :key="item.id">
+        <img :src="item.image" @click="onBannerClick(item)">
+      </van-swipe-item>
+    </van-swipe>
+    
+    <!-- 分类导航 -->
+    <van-grid :column-num="5" :border="false" class="nav">
+      <van-grid-item
+        v-for="item in categories"
+        :key="item.id"
+        :icon="item.icon"
+        :text="item.name"
+        @click="onCategoryClick(item)"
+      />
+    </van-grid>
+    
+    <!-- 商品列表 -->
+    <div class="goods-list">
       <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
         <van-list
           v-model:loading="loading"
@@ -42,17 +44,18 @@
             :price="item.price"
             :title="item.title"
             :thumb="item.thumb"
-            :tag="item.tag"
-            :desc="item.desc"
             @click="onGoodsClick(item)"
           >
+            <template #tags>
+              <van-tag plain type="danger" v-if="item.tag">{{ item.tag }}</van-tag>
+            </template>
             <template #footer>
               <van-button size="mini" @click.stop="addToCart(item)">加入购物车</van-button>
             </template>
           </van-card>
         </van-list>
       </van-pull-refresh>
-    </van-skeleton>
+    </div>
   </div>
 </template>
 
@@ -60,47 +63,60 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
-import { getBanners, getGoodsList } from '@/api/home'
+import { useCartStore } from '@/store'
+import { getBannerList } from '@/api/banner'
 import { getCategoryList } from '@/api/category'
+import { getGoodsList } from '@/api/goods'
 
 const router = useRouter()
-const searchValue = ref('')
+const cartStore = useCartStore()
+
+// 搜索相关
+const keyword = ref('')
+const onSearchFocus = () => {
+  router.push('/search')
+}
+
+// 轮播图相关
 const banners = ref([])
+const loadBanners = async () => {
+  try {
+    banners.value = await getBannerList()
+  } catch (error) {
+    console.error('加载轮播图失败:', error)
+  }
+}
+const onBannerClick = (banner) => {
+  if (banner.url) {
+    router.push(banner.url)
+  }
+}
+
+// 分类相关
 const categories = ref([])
+const loadCategories = async () => {
+  try {
+    categories.value = await getCategoryList()
+  } catch (error) {
+    console.error('加载分类失败:', error)
+  }
+}
+const onCategoryClick = (category) => {
+  router.push({
+    path: '/category',
+    query: { id: category.id }
+  })
+}
+
+// 商品列表相关
 const goodsList = ref([])
 const loading = ref(false)
 const finished = ref(false)
 const refreshing = ref(false)
-const initialLoading = ref(true)
 const pageNum = ref(1)
 const pageSize = 10
 
-// 初始化数据
-onMounted(async () => {
-  try {
-    const [bannerRes, categoryRes] = await Promise.all([
-      getBanners(),
-      getCategoryList()
-    ])
-    banners.value = bannerRes
-    categories.value = categoryRes
-  } catch (error) {
-    console.error('初始化数据失败:', error)
-  } finally {
-    initialLoading.value = false
-  }
-})
-
-// 搜索
-const onSearch = (value) => {
-  router.push({
-    path: '/search',
-    query: { keyword: value }
-  })
-}
-
-// 加载更多
-const onLoad = async () => {
+const loadGoods = async () => {
   try {
     const res = await getGoodsList({
       pageNum: pageNum.value,
@@ -125,37 +141,55 @@ const onLoad = async () => {
   }
 }
 
-// 刷新
+const onLoad = () => {
+  loadGoods()
+}
+
 const onRefresh = () => {
   finished.value = false
   pageNum.value = 1
-  onLoad()
+  loadGoods()
 }
 
-// 点击分类
-const onCategoryClick = (category) => {
-  router.push(`/category/${category.id}`)
-}
-
-// 点击商品
+// 商品相关
 const onGoodsClick = (goods) => {
   router.push(`/goods/${goods.id}`)
 }
 
-// 加入购物车
 const addToCart = (goods) => {
-  showToast('加入购物车成功')
+  cartStore.addToCart({
+    id: goods.id,
+    title: goods.title,
+    price: goods.price,
+    thumb: goods.thumb,
+    quantity: 1
+  })
+  showToast('已加入购物车')
 }
+
+// 初始化数据
+onMounted(async () => {
+  await Promise.all([
+    loadBanners(),
+    loadCategories()
+  ])
+})
 </script>
 
 <style scoped lang="scss">
 .home {
   min-height: 100vh;
   background: #f5f5f5;
+  padding-bottom: 50px;
+  
+  .search-bar {
+    position: sticky;
+    top: 0;
+    z-index: 999;
+  }
   
   .banner {
-    height: 200px;
-    margin-bottom: 10px;
+    height: 150px;
     
     img {
       width: 100%;
@@ -164,9 +198,16 @@ const addToCart = (goods) => {
     }
   }
   
-  :deep(.van-card) {
-    margin-bottom: 10px;
+  .nav {
     background: #fff;
+    margin-bottom: 10px;
+  }
+  
+  .goods-list {
+    .van-card {
+      margin-bottom: 10px;
+      background: #fff;
+    }
   }
 }
 </style> 

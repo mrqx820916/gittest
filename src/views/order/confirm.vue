@@ -125,8 +125,10 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
+import { useCartStore } from '@/store'
 
 const router = useRouter()
+const cartStore = useCartStore()
 const showAddress = ref(false)
 const selectedAddressId = ref('')
 const deliveryType = ref('express')

@@ -55,12 +55,14 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
+import { useCartStore } from '@/store'
+import { searchGoods } from '@/api/goods'
 
-const route = useRoute()
 const router = useRouter()
-const keyword = ref(route.query.keyword || '')
+const cartStore = useCartStore()
+const keyword = ref('')
 const searchHistory = ref([])
 const goodsList = ref([])
 const loading = ref(false)
@@ -71,9 +73,6 @@ const pageSize = 10
 
 onMounted(() => {
   loadSearchHistory()
-  if (keyword.value) {
-    onSearch(keyword.value)
-  }
 })
 
 const loadSearchHistory = () => {
@@ -150,7 +149,14 @@ const onGoodsClick = (goods) => {
 }
 
 const addToCart = (goods) => {
-  showToast('加入购物车成功')
+  cartStore.addToCart({
+    id: goods.id,
+    title: goods.title,
+    price: goods.price,
+    thumb: goods.thumb,
+    quantity: 1
+  })
+  showToast('已加入购物车')
 }
 </script>
 
@@ -183,7 +189,7 @@ const addToCart = (goods) => {
     }
   }
   
-  :deep(.van-card) {
+  .van-card {
     margin-bottom: 10px;
     background: #fff;
   }
