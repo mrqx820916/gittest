@@ -11,17 +11,23 @@
               height="4rem"
               :src="userStore.userInfo?.avatar"
               error-icon="contact"
+              @click="showAvatarUpload = true"
             />
           </van-col>
           <van-col span="16" class="info-content">
-            <div class="username">{{ userStore.userInfo?.nickname }}</div>
+            <div class="username">{{ userStore.userInfo?.nickname || '设置昵称' }}</div>
             <div class="user-id">ID: {{ userStore.userInfo?.id }}</div>
-          </div>
+            <div class="phone">{{ formatPhone(userStore.userInfo?.phone) }}</div>
+            <div class="level-info">
+              <van-tag type="danger">{{ currentLevel.name }}</van-tag>
+              <span class="points">积分: {{ userStore.userInfo?.points || 0 }}</span>
+            </div>
+          </van-col>
         </van-row>
       </template>
       <template v-else>
         <van-row class="user-info">
-          <van-col span="24">
+          <van-col span="24" class="login-btn">
             <van-button 
               type="primary" 
               size="small" 
@@ -35,120 +41,129 @@
       </template>
     </div>
 
-    <!-- 我的订单 -->
-    <van-cell-group class="order-card" inset>
+    <!-- 订单统计 -->
+    <van-cell-group inset class="order-card">
       <van-cell title="我的订单" value="全部订单" is-link to="/order/list" />
-      <van-grid :border="false" :column-num="4">
-        <van-grid-item
-          v-for="(item, index) in orderTypes"
-          :key="index"
-          :icon="item.icon"
-          :text="item.text"
-          :badge="orderCounts[item.type] || ''"
-          :to="item.path"
-        />
-      </van-grid>
+      <order-stats :counts="orderCounts" />
     </van-cell-group>
 
     <!-- 我的资产 -->
-    <van-cell-group class="assets-card" inset>
+    <van-cell-group inset class="assets-card">
       <van-grid :border="false" :column-num="4">
         <van-grid-item
           icon="balance-o"
           text="余额"
-          :value="userInfo.balance || '0.00'"
+          :value="formatPrice(userStore.userInfo?.balance || 0)"
+          @click="showRecharge = true"
         />
         <van-grid-item
           icon="coupon-o"
           text="优惠券"
-          :value="userInfo.couponCount || '0'"
+          :value="userInfo.couponCount || 0"
           to="/coupon"
         />
         <van-grid-item
           icon="point-gift-o"
           text="积分"
-          :value="userInfo.points || '0'"
+          :value="userStore.userInfo?.points || 0"
+          to="/points"
         />
         <van-grid-item
           icon="star-o"
           text="收藏"
-          :value="userInfo.collectCount || '0'"
+          :value="userInfo.collectCount || 0"
           to="/collect"
         />
       </van-grid>
     </van-cell-group>
 
     <!-- 功能列表 -->
-    <van-cell-group class="function-list" inset>
-      <van-cell title="收货地址" is-link to="/address" />
-      <van-cell title="我的收藏" is-link to="/collect" />
-      <van-cell title="优惠券" is-link to="/coupon" />
-      <van-cell title="客服中心" is-link to="/service" />
-      <van-cell title="设置" is-link to="/settings" />
+    <van-cell-group inset class="function-list">
+      <van-cell title="收货地址" icon="location-o" is-link to="/address" />
+      <van-cell title="我的收藏" icon="star-o" is-link to="/collect" />
+      <van-cell title="优惠券" icon="coupon-o" is-link to="/coupon" />
+      <van-cell title="积分商城" icon="gift-o" is-link to="/points-mall" />
+      <van-cell title="邀请分享" icon="share-o" is-link @click="showShare = true" />
+      <van-cell title="帮助中心" icon="question-o" is-link to="/help" />
+      <van-cell title="意见反馈" icon="comment-o" is-link to="/feedback" />
+      <van-cell title="设置" icon="setting-o" is-link to="/settings" />
     </van-cell-group>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store'
-import { getOrderCounts } from '@/api/order'
+import { formatPhone, formatPrice } from '@/utils'
+import OrderStats from '@/components/order-stats/index.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
 
 // 用户信息
-const userInfo = ref({
-  balance: '0.00',
-  couponCount: 0,
-  points: 0,
-  collectCount: 0
-})
-
-// 订单类型
-const orderTypes = [
-  { icon: 'pending-payment', text: '待付款', type: 1, path: '/order/list?type=1' },
-  { icon: 'logistics', text: '待发货', type: 2, path: '/order/list?type=2' },
-  { icon: 'send-gift', text: '待收货', type: 3, path: '/order/list?type=3' },
-  { icon: 'comment', text: '待评价', type: 4, path: '/order/list?type=4' }
-]
-
-// 订单数量统计
+const userInfo = ref({})
 const orderCounts = ref({})
 
-// 加载订单统计
-const loadOrderCounts = async () => {
-  try {
-    const res = await getOrderCounts()
-    orderCounts.value = res
-  } catch (error) {
-    console.error('获取订单统计失败:', error)
+// 会员等级配置
+const memberLevels = {
+  diamond: {
+    name: '钻石会员',
+    discount: 0.8,
+    color: '#ee0a24',
+    icon: 'gem-o',
+    points: 10000,
+    benefits: ['正常商品8折', 'VIP专享价', '生日礼包']
+  },
+  gold: {
+    name: '金牌会员',
+    discount: 0.85,
+    color: '#ff976a',
+    icon: 'diamond-o',
+    points: 5000,
+    benefits: ['正常商品8.5折', '专属优惠券', '优先发货']
+  },
+  silver: {
+    name: '银牌会员',
+    discount: 0.9,
+    color: '#969799',
+    icon: 'medal-o',
+    points: 1000,
+    benefits: ['正常商品9折', '生日双倍积分', '免费退换货']
+  },
+  normal: {
+    name: '普通会员',
+    discount: 0.95,
+    color: '#969799',
+    icon: 'friends-o',
+    points: 0,
+    benefits: ['正常商品9.5折', '生日特权', '专属客服']
   }
 }
 
-// 加载用户信息
-const loadUserInfo = async () => {
-  if (!userStore.isLogin) return
-  
-  try {
-    const res = await userStore.getUserInfo()
-    userInfo.value = res
-  } catch (error) {
-    console.error('获取用户信息失败:', error)
-  }
+// 获取当前用户等级
+const getCurrentLevel = (points) => {
+  if (points >= memberLevels.diamond.points) return memberLevels.diamond
+  if (points >= memberLevels.gold.points) return memberLevels.gold
+  if (points >= memberLevels.silver.points) return memberLevels.silver
+  return memberLevels.normal
 }
+
+// 计算当前用户等级
+const currentLevel = computed(() => {
+  const points = userStore.userInfo?.points || 0
+  return getCurrentLevel(points)
+})
 
 // 去登录
 const goToLogin = () => {
   router.push('/login')
 }
 
-// 初始化数据
+// 初始化
 onMounted(() => {
   if (userStore.isLogin) {
-    loadUserInfo()
-    loadOrderCounts()
+    userStore.getUserInfo()
   }
 })
 </script>
@@ -158,38 +173,52 @@ onMounted(() => {
   min-height: 100vh;
   background: #f5f5f5;
   padding-bottom: 50px;
-
+  
   .user-card {
     background: linear-gradient(to right, #ff6034, #ee0a24);
     padding: 20px;
     color: #fff;
-
+    
     .user-info {
       display: flex;
       align-items: center;
-
+      
       .info-content {
-        padding-left: 15px;
-
+        margin-left: 15px;
+        
         .username {
           font-size: 18px;
           font-weight: bold;
           margin-bottom: 5px;
         }
-
-        .user-id {
-          font-size: 12px;
+        
+        .user-id,
+        .phone {
+          font-size: 14px;
+          margin-bottom: 5px;
           opacity: 0.8;
         }
+        
+        .level-info {
+          display: flex;
+          align-items: center;
+          
+          .points {
+            margin-left: 10px;
+            font-size: 12px;
+          }
+        }
+      }
+      
+      .login-btn {
+        text-align: center;
+        padding: 20px 0;
       }
     }
   }
-
+  
   .order-card,
-  .assets-card {
-    margin-top: 12px;
-  }
-
+  .assets-card,
   .function-list {
     margin-top: 12px;
   }

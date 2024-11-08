@@ -8,48 +8,57 @@
     
     <div class="login-form">
       <van-form @submit="onSubmit">
-        <van-cell-group inset>
-          <van-field
-            v-model="form.phone"
-            name="phone"
-            label="手机号"
-            placeholder="请输入手机号"
-            :rules="[{ required: true, message: '请填写手机号' }]"
-          />
-          <van-field
-            v-model="form.code"
-            center
-            clearable
-            label="验证码"
-            placeholder="请输入验证码"
-            :rules="[{ required: true, message: '请填写验证码' }]"
-          >
-            <template #button>
-              <van-button
-                size="small"
-                type="primary"
-                :disabled="isCountingDown"
-                @click="sendCode"
-              >
-                {{ countDownText }}
-              </van-button>
-            </template>
-          </van-field>
-        </van-cell-group>
+        <!-- 手机号 -->
+        <van-field
+          v-model="form.phone"
+          type="tel"
+          label="手机号"
+          placeholder="请输入手机号"
+          :rules="[
+            { required: true, message: '请输入手机号' },
+            { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确' }
+          ]"
+        />
         
-        <div class="submit-btn">
-          <van-button round block type="primary" native-type="submit">
+        <!-- 验证码 -->
+        <van-field
+          v-model="form.code"
+          type="digit"
+          label="验证码"
+          placeholder="请输入验证码"
+          :rules="[{ required: true, message: '请输入验证码' }]"
+        >
+          <template #button>
+            <van-button
+              size="small"
+              type="primary"
+              :disabled="!!countdown"
+              @click="sendCode"
+            >
+              {{ countdown ? `${countdown}s` : '获取验证码' }}
+            </van-button>
+          </template>
+        </van-field>
+        
+        <!-- 登录按钮 -->
+        <div style="margin: 16px;">
+          <van-button
+            round
+            block
+            type="primary"
+            native-type="submit"
+            :loading="loading"
+          >
             登录
           </van-button>
         </div>
       </van-form>
       
-      <div class="other-login">
-        <div class="title">其他登录方式</div>
-        <div class="icons">
-          <van-icon name="wechat" size="24" color="#07c160" @click="wechatLogin" />
-          <van-icon name="alipay" size="24" color="#1677ff" @click="alipayLogin" />
-        </div>
+      <!-- 提示 -->
+      <div class="tips">
+        <p>测试账号：</p>
+        <p>手机号：13111111111</p>
+        <p>验证码：123456</p>
       </div>
     </div>
   </div>
@@ -57,69 +66,68 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { showToast } from 'vant'
 import { useUserStore } from '@/store'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
+
+// 表单数据
 const form = ref({
   phone: '',
   code: ''
 })
 
-const countdown = ref(60)
-const isCountingDown = ref(false)
-const countDownText = ref('获取验证码')
+// 状态控制
+const loading = ref(false)
+const countdown = ref(0)
 
-const onClickLeft = () => {
-  router.back()
-}
-
-const startCountDown = () => {
-  isCountingDown.value = true
-  countdown.value = 60
-  countDownText.value = `${countdown.value}s`
-  
-  const timer = setInterval(() => {
-    countdown.value--
-    countDownText.value = `${countdown.value}s`
-    
-    if (countdown.value <= 0) {
-      clearInterval(timer)
-      isCountingDown.value = false
-      countDownText.value = '获取验证码'
-    }
-  }, 1000)
-}
-
-const sendCode = () => {
+// 发送验证码
+const sendCode = async () => {
   if (!/^1[3-9]\d{9}$/.test(form.value.phone)) {
     showToast('请输入正确的手机号')
     return
   }
   
-  // TODO: 调用发送验证码接口
-  showToast('验证码已发送')
-  startCountDown()
-}
-
-const onSubmit = async () => {
   try {
-    await userStore.login(form.value)
-    showToast('登录成功')
-    router.replace('/')
+    // 开发环境不真正发送验证码
+    showToast('验证码已发送')
+    
+    // 开始倒计时
+    countdown.value = 60
+    const timer = setInterval(() => {
+      countdown.value--
+      if (countdown.value <= 0) {
+        clearInterval(timer)
+      }
+    }, 1000)
   } catch (error) {
-    showToast('登录失败')
+    showToast('发送失败')
   }
 }
 
-const wechatLogin = () => {
-  showToast('微信登录')
+// 提交登录
+const onSubmit = async () => {
+  try {
+    loading.value = true
+    await userStore.login(form.value)
+    showToast('登录成功')
+    
+    // 跳转到来源页面或首页
+    const redirect = route.query.redirect || '/'
+    router.replace(redirect)
+  } catch (error) {
+    showToast(error.message || '登录失败')
+  } finally {
+    loading.value = false
+  }
 }
 
-const alipayLogin = () => {
-  showToast('支付宝登录')
+// 返回上一页
+const onClickLeft = () => {
+  router.back()
 }
 </script>
 
@@ -130,27 +138,16 @@ const alipayLogin = () => {
   
   .login-form {
     padding: 20px;
-    
-    .submit-btn {
-      margin: 20px;
-    }
   }
   
-  .other-login {
-    text-align: center;
-    margin-top: 40px;
-    
-    .title {
-      color: #999;
-      font-size: 14px;
-      margin-bottom: 20px;
-    }
-    
-    .icons {
-      display: flex;
-      justify-content: center;
-      gap: 40px;
-    }
+  .tips {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f7f8fa;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #666;
+    line-height: 1.5;
   }
 }
 </style> 

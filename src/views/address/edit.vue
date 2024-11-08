@@ -6,33 +6,33 @@
       @click-left="onClickLeft"
     />
     
+    <!-- 地址编辑表单 -->
     <van-address-edit
       :area-list="areaList"
       :address-info="addressInfo"
-      show-delete
-      show-set-default
-      show-search-result
-      :search-result="searchResult"
+      :show-delete="isEdit"
+      :show-set-default="true"
       :area-columns-placeholder="['请选择', '请选择', '请选择']"
       @save="onSave"
       @delete="onDelete"
-      @change-detail="onChangeDetail"
     />
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { showToast, showConfirmDialog } from 'vant'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { showToast, showDialog } from 'vant'
 import { areaList } from '@vant/area-data'
+import { getAddressDetail, createAddress, updateAddress, deleteAddress } from '@/api/address'
 
-const route = useRoute()
 const router = useRouter()
-const searchResult = ref([])
+const route = useRoute()
 
+// 判断是否编辑模式
 const isEdit = computed(() => !!route.query.id)
 
+// 地址信息
 const addressInfo = ref({
   name: '',
   tel: '',
@@ -41,17 +41,41 @@ const addressInfo = ref({
   county: '',
   addressDetail: '',
   areaCode: '',
-  postalCode: '',
   isDefault: false
 })
 
-const onClickLeft = () => {
-  router.back()
+// 加载地址详情
+const loadAddressDetail = async () => {
+  if (!isEdit.value) return
+  
+  try {
+    const res = await getAddressDetail(route.query.id)
+    addressInfo.value = {
+      id: res.id,
+      name: res.name,
+      tel: res.tel,
+      province: res.province,
+      city: res.city,
+      county: res.county,
+      addressDetail: res.addressDetail,
+      areaCode: res.areaCode,
+      isDefault: res.isDefault
+    }
+  } catch (error) {
+    showToast('获取地址详情失败')
+    router.back()
+  }
 }
 
+// 保存地址
 const onSave = async (content) => {
   try {
-    // TODO: 调用保存地址接口
+    if (isEdit.value) {
+      await updateAddress(route.query.id, content)
+    } else {
+      await createAddress(content)
+    }
+    
     showToast('保存成功')
     router.back()
   } catch (error) {
@@ -59,14 +83,16 @@ const onSave = async (content) => {
   }
 }
 
+// 删除地址
 const onDelete = async () => {
   try {
-    await showConfirmDialog({
+    await showDialog({
       title: '提示',
-      message: '确定要删除此地址吗？'
+      message: '确定要删除此地址吗？',
+      showCancelButton: true
     })
     
-    // TODO: 调用删除地址接口
+    await deleteAddress(route.query.id)
     showToast('删除成功')
     router.back()
   } catch {
@@ -74,19 +100,15 @@ const onDelete = async () => {
   }
 }
 
-const onChangeDetail = (val) => {
-  if (val) {
-    // TODO: 调用地址搜索接口
-    searchResult.value = [
-      {
-        name: '杭州市西湖区文三路 138 号东方通信大厦 7 楼 501 室',
-        address: '杭州市西湖区'
-      }
-    ]
-  } else {
-    searchResult.value = []
-  }
+// 返回上一页
+const onClickLeft = () => {
+  router.back()
 }
+
+// 初始化数据
+onMounted(() => {
+  loadAddressDetail()
+})
 </script>
 
 <style scoped lang="scss">

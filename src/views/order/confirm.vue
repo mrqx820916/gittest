@@ -93,6 +93,11 @@
           <span class="price red">-￥{{ discountAmount }}</span>
         </template>
       </van-cell>
+      <van-cell title="实付金额" size="large">
+        <template #value>
+          <span class="price large">￥{{ finalPrice }}</span>
+        </template>
+      </van-cell>
     </van-cell-group>
     
     <!-- 提交订单栏 -->
@@ -118,6 +123,21 @@
         @select="onSelectAddress"
       />
     </van-popup>
+    
+    <!-- 优惠券列表弹窗 -->
+    <van-popup
+      v-model:show="showCoupon"
+      position="bottom"
+      round
+      safe-area-inset-bottom
+    >
+      <van-coupon-list
+        :coupons="availableCoupons"
+        :chosen-coupon="selectedCouponIndex"
+        @change="onSelectCoupon"
+        @exchange="onExchangeCoupon"
+      />
+    </van-popup>
   </div>
 </template>
 
@@ -126,102 +146,99 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import { useCartStore } from '@/store'
+import { getAddressList } from '@/api/address'
+import { getAvailableCoupons } from '@/api/coupon'
+import { createOrder } from '@/api/order'
+import { formatAddress, formatSpecs, formatPrice } from '@/utils'
 
 const router = useRouter()
 const cartStore = useCartStore()
+
+// 地址相关
 const showAddress = ref(false)
 const selectedAddressId = ref('')
-const deliveryType = ref('express')
-const remark = ref('')
-
-// 模拟数据
-const addressList = ref([
-  {
-    id: '1',
-    name: '张三',
-    tel: '13000000000',
-    address: '浙江省杭州市西湖区文三路 138 号东方通信大厦 7 楼 501 室',
-    isDefault: true
-  }
-])
-
-const orderGoods = ref([
-  {
-    id: 1,
-    title: '新鲜水果',
-    price: 49.99,
-    quantity: 2,
-    thumb: 'https://img.yzcdn.cn/vant/apple-1.jpg',
-    specs: { '规格': '大份', '套餐': '标准' }
-  }
-])
-
+const addressList = ref([])
 const selectedAddress = computed(() => {
   return addressList.value.find(item => item.id === selectedAddressId.value)
 })
 
-// 计算金额
-const totalPrice = computed(() => {
-  return orderGoods.value.reduce((total, item) => {
-    return total + item.price * item.quantity
-  }, 0)
+// 商品相关
+const orderGoods = computed(() => cartStore.checkedItems)
+
+// 优惠券相关
+const showCoupon = ref(false)
+const availableCoupons = ref([])
+const selectedCouponIndex = ref(-1)
+const selectedCoupon = computed(() => {
+  return selectedCouponIndex.value > -1 ? availableCoupons.value[selectedCouponIndex.value] : null
 })
 
-const deliveryFee = computed(() => {
-  return deliveryType.value === 'express' ? 8 : 0
-})
+// 配送相关
+const deliveryType = ref('express')
+const remark = ref('')
 
-const discountAmount = computed(() => {
-  return selectedCoupon.value ? selectedCoupon.value.amount : 0
-})
-
+// 金额计算
+const totalPrice = computed(() => cartStore.checkedPrice)
+const deliveryFee = computed(() => deliveryType.value === 'express' ? 8 : 0)
+const discountAmount = computed(() => selectedCoupon.value?.amount || 0)
 const finalPrice = computed(() => {
   return totalPrice.value + deliveryFee.value - discountAmount.value
 })
 
-// 优惠券相关
-const selectedCoupon = ref(null)
-const availableCoupons = ref([
-  { id: 1, amount: 5, condition: 50 },
-  { id: 2, amount: 10, condition: 100 }
-])
-
-// 方法
-const onClickLeft = () => {
-  router.back()
+// 加载地址列表
+const loadAddressList = async () => {
+  try {
+    const res = await getAddressList()
+    addressList.value = res
+    // 设置默认地址
+    const defaultAddress = res.find(item => item.isDefault)
+    if (defaultAddress) {
+      selectedAddressId.value = defaultAddress.id
+    }
+  } catch (error) {
+    showToast('获取地址列表失败')
+  }
 }
 
-const formatAddress = (address) => {
-  return `${address.address}`
+// 加载优惠券
+const loadCoupons = async () => {
+  try {
+    const res = await getAvailableCoupons({ amount: totalPrice.value })
+    availableCoupons.value = res
+  } catch (error) {
+    showToast('获取优惠券失败')
+  }
 }
 
-const formatSpecs = (specs) => {
-  return Object.entries(specs)
-    .map(([key, value]) => `${key}:${value}`)
-    .join(';')
-}
-
-const showAddressList = () => {
-  showAddress.value = true
-}
-
-const showCouponList = () => {
-  // TODO: 显示优惠券列表
-}
-
+// 地址相关方法
 const onAddAddress = () => {
   router.push('/address/edit')
 }
 
-const onEditAddress = () => {
-  router.push('/address/edit')
+const onEditAddress = (item) => {
+  router.push({
+    path: '/address/edit',
+    query: { id: item.id }
+  })
 }
 
-const onSelectAddress = (address) => {
-  selectedAddressId.value = address.id
+const onSelectAddress = (item) => {
+  selectedAddressId.value = item.id
   showAddress.value = false
 }
 
+// 优惠券相关方法
+const onSelectCoupon = (index) => {
+  selectedCouponIndex.value = index
+  showCoupon.value = false
+}
+
+const onExchangeCoupon = (code) => {
+  // TODO: 实现优惠券兑换
+  showToast('优惠券兑换功能开发中')
+}
+
+// 提交订单
 const onSubmit = async () => {
   if (!selectedAddress.value) {
     showToast('请选择收货地址')
@@ -229,13 +246,38 @@ const onSubmit = async () => {
   }
   
   try {
-    // TODO: 调用创建订单接口
-    showToast('订单提交成功')
-    router.replace('/order/list')
+    const order = await createOrder({
+      address: selectedAddress.value,
+      goods: orderGoods.value,
+      deliveryType: deliveryType.value,
+      couponId: selectedCoupon.value?.id,
+      remark: remark.value,
+      totalPrice: totalPrice.value,
+      deliveryFee: deliveryFee.value,
+      discountAmount: discountAmount.value,
+      finalPrice: finalPrice.value
+    })
+    
+    // 清空已选商品
+    cartStore.clearChecked()
+    
+    // 跳转到支付页面
+    router.replace(`/order/pay/${order.id}`)
   } catch (error) {
-    showToast('订单提交失败')
+    showToast('创建订单失败')
   }
 }
+
+// 返回上一页
+const onClickLeft = () => {
+  router.back()
+}
+
+// 初始化数据
+onMounted(() => {
+  loadAddressList()
+  loadCoupons()
+})
 </script>
 
 <style scoped lang="scss">
@@ -257,7 +299,12 @@ const onSubmit = async () => {
     font-weight: bold;
     
     &.red {
-      color: #ee0a24;
+      color: $primary-color;
+    }
+    
+    &.large {
+      font-size: 16px;
+      color: $primary-color;
     }
   }
   
@@ -265,4 +312,4 @@ const onSubmit = async () => {
     bottom: 50px;
   }
 }
-</style> 
+</style>

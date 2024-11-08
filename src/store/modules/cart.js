@@ -1,53 +1,70 @@
 import { defineStore } from 'pinia'
+import { getStorage, setStorage } from '@/utils/storage'
 
 export const useCartStore = defineStore('cart', {
   state: () => ({
-    items: JSON.parse(localStorage.getItem('cart') || '[]')
+    items: getStorage('cartItems') || []
   }),
   
   getters: {
-    totalCount: state => state.items.reduce((total, item) => total + item.quantity, 0),
-    totalPrice: state => state.items.reduce((total, item) => total + item.price * item.quantity, 0)
+    totalCount: (state) => {
+      return state.items.reduce((total, item) => total + item.quantity, 0)
+    },
+    
+    totalPrice: (state) => {
+      return state.items.reduce((total, item) => {
+        return total + item.price * item.quantity
+      }, 0)
+    },
+    
+    checkedItems: (state) => {
+      return state.items.filter(item => item.checked)
+    }
   },
   
   actions: {
-    // 添加到购物车
     addToCart(goods) {
-      const existing = this.items.find(item => 
-        item.id === goods.id && 
-        JSON.stringify(item.specs) === JSON.stringify(goods.specs)
-      )
+      const existing = this.items.find(item => {
+        return item.id === goods.id && 
+          JSON.stringify(item.specs) === JSON.stringify(goods.specs)
+      })
       
       if (existing) {
         existing.quantity += goods.quantity
       } else {
-        this.items.push(goods)
+        this.items.push({ ...goods, checked: true })
       }
       
-      this.saveToLocal()
+      this.saveToStorage()
     },
     
-    // 更新商品数量
     updateQuantity(index, quantity) {
       this.items[index].quantity = quantity
-      this.saveToLocal()
+      this.saveToStorage()
     },
     
-    // 删除商品
     removeItem(index) {
       this.items.splice(index, 1)
-      this.saveToLocal()
+      this.saveToStorage()
     },
     
-    // 清空购物车
-    clearCart() {
-      this.items = []
-      this.saveToLocal()
+    setChecked(index, checked) {
+      this.items[index].checked = checked
+      this.saveToStorage()
     },
     
-    // 保存到本地存储
-    saveToLocal() {
-      localStorage.setItem('cart', JSON.stringify(this.items))
+    setAllChecked(checked) {
+      this.items.forEach(item => item.checked = checked)
+      this.saveToStorage()
+    },
+    
+    clearChecked() {
+      this.items = this.items.filter(item => !item.checked)
+      this.saveToStorage()
+    },
+    
+    saveToStorage() {
+      setStorage('cartItems', this.items)
     }
   }
 }) 

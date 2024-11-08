@@ -1,0 +1,61 @@
+// 主题色
+$primary-color: #ee0a24;
+$success-color: #07c160;
+$warning-color: #ff976a;
+$danger-color: #ee0a24;
+
+// 文字颜色
+$text-color: #323233;
+$text-color-light: #969799;
+$text-color-lighter: #c8c9cc;
+
+// 背景色
+$background-color: #f7f8fa;
+$white: #fff;
+
+// 边框颜色
+$border-color: #ebedf0;
+
+// 字体大小
+$font-size-xs: 10px;
+$font-size-sm: 12px;
+$font-size-md: 14px;
+$font-size-lg: 16px;
+$font-size-xl: 18px;
+
+// 间距
+$padding-base: 4px;
+$padding-xs: 8px;
+$padding-sm: 12px;
+$padding-md: 16px;
+$padding-lg: 24px;
+$padding-xl: 32px;
+
+// 圆角
+$border-radius-sm: 2px;
+$border-radius-md: 4px;
+$border-radius-lg: 8px;
+$border-radius-max: 999px;
+
+// 动画
+$animation-duration-base: 0.3s;
+$animation-duration-fast: 0.2s;
+$animation-timing-function-enter: ease-out;
+$animation-timing-function-leave: ease-in;
+
+// 阴影
+$shadow-1: 0 1px 3px rgba(0, 0, 0, 0.1);
+$shadow-2: 0 2px 4px rgba(0, 0, 0, 0.12);
+$shadow-3: 0 4px 8px rgba(0, 0, 0, 0.12);
+$shadow-4: 0 8px 16px rgba(0, 0, 0, 0.12);
+
+// z-index
+$z-index-navbar: 100;
+$z-index-tabbar: 100;
+$z-index-modal: 1000;
+$z-index-popup: 1000;
+$z-index-toast: 1100;
+
+// 布局相关
+$navbar-height: 46px;
+$tabbar-height: 50px; 

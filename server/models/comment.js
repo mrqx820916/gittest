@@ -27,18 +27,20 @@ const commentSchema = new mongoose.Schema({
     max: 5
   },
   images: [String],
-  reply: String,
-  replyTime: Date,
-  status: {
+  anonymous: {
+    type: Boolean,
+    default: false
+  },
+  reply: {
+    content: String,
+    time: Date
+  },
+  likes: {
     type: Number,
-    default: 1  // 1: 正常, 0: 隐藏
+    default: 0
   }
 }, {
   timestamps: true
 })
-
-// 添加索引
-commentSchema.index({ goods: 1, createdAt: -1 })
-commentSchema.index({ user: 1, createdAt: -1 })
 
 export default mongoose.model('Comment', commentSchema) 

@@ -2,14 +2,19 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
 import Components from 'unplugin-vue-components/vite'
-import { VantResolver } from '@vant/auto-import-resolver'
+import { VantResolver } from 'unplugin-vue-components/resolvers'
 import postCssPxToRem from 'postcss-pxtorem'
 
 export default defineConfig({
   plugins: [
     vue(),
     Components({
-      resolvers: [VantResolver()]
+      resolvers: [VantResolver({
+        version: '4',
+        importStyle: true,
+        resolveIcons: true
+      })],
+      dirs: []
     })
   ],
   resolve: {
@@ -23,14 +28,15 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:3000',
-        changeOrigin: true
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '')
       }
     }
   },
   css: {
     preprocessorOptions: {
       scss: {
-        additionalData: '@import "@/styles/variables.scss";'
+        additionalData: `@import "@/styles/variables.scss";`
       }
     },
     postcss: {

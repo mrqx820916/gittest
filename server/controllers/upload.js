@@ -1,134 +1,125 @@
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
 import multer from 'multer'
-import OSS from 'ali-oss'
-import COS from 'cos-nodejs-sdk-v5'
-import { nanoid } from 'nanoid'
-import Settings from '../models/settings.js'
+import { AppError } from '../middlewares/error.js'
+import { uploadToOSS } from '../utils/oss.js'
+import config from '../config/index.js'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-
-// 获取存储设置
-const getStorageConfig = async () => {
-  const settings = await Settings.findOne()
-  return settings?.storage || 'local'
-}
-
-// 本地存储配置
-const localStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../public/uploads')
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true })
-    }
-    cb(null, uploadDir)
+// 配置 multer
+const storage = multer.memoryStorage()
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 限制 5MB
+    files: 9 // 最多9张图片
   },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname)
-    cb(null, `${nanoid()}${ext}`)
-  }
-})
-
-// 阿里云OSS配置
-const ossStorage = async () => {
-  const settings = await Settings.findOne()
-  return new OSS({
-    accessKeyId: settings.ossAccessKey,
-    accessKeySecret: settings.ossSecretKey,
-    bucket: settings.ossBucket,
-    region: settings.ossRegion
-  })
-}
-
-// 腾讯云COS配置
-const cosStorage = async () => {
-  const settings = await Settings.findOne()
-  return new COS({
-    SecretId: settings.cosSecretId,
-    SecretKey: settings.cosSecretKey
-  })
-}
-
-// 文件上传处理
-export const upload = async (req, res) => {
-  try {
-    const storage = await getStorageConfig()
-    
-    switch (storage) {
-      case 'local':
-        // 本地上传
-        const upload = multer({ storage: localStorage }).single('file')
-        upload(req, res, (err) => {
-          if (err) {
-            return res.status(400).json({
-              code: 400,
-              message: '上传失败'
-            })
-          }
-          
-          res.json({
-            code: 200,
-            data: {
-              url: `/uploads/${req.file.filename}`
-            }
-          })
-        })
-        break
-        
-      case 'oss':
-        // 阿里云OSS上传
-        const ossClient = await ossStorage()
-        const ossResult = await ossClient.put(
-          `uploads/${nanoid()}${path.extname(req.file.originalname)}`,
-          req.file.buffer
-        )
-        
-        res.json({
-          code: 200,
-          data: {
-            url: ossResult.url
-          }
-        })
-        break
-        
-      case 'cos':
-        // 腾讯云COS上传
-        const cosClient = await cosStorage()
-        const settings = await Settings.findOne()
-        
-        const cosResult = await new Promise((resolve, reject) => {
-          cosClient.putObject({
-            Bucket: settings.cosBucket,
-            Region: settings.cosRegion,
-            Key: `uploads/${nanoid()}${path.extname(req.file.originalname)}`,
-            Body: req.file.buffer
-          }, (err, data) => {
-            if (err) {
-              reject(err)
-            } else {
-              resolve(data)
-            }
-          })
-        })
-        
-        res.json({
-          code: 200,
-          data: {
-            url: `https://${settings.cosBucket}.cos.${settings.cosRegion}.myqcloud.com/${cosResult.Key}`
-          }
-        })
-        break
-        
-      default:
-        throw new Error('未知的存储方式')
+  fileFilter: (req, file, cb) => {
+    // 只允许上传图片
+    if (!file.mimetype.startsWith('image/')) {
+      cb(new AppError('只能上传图片文件', 400), false)
+    } else {
+      cb(null, true)
     }
-  } catch (error) {
-    console.error('文件上传失败:', error)
-    res.status(500).json({
-      code: 500,
-      message: '文件上传失败'
+  }
+}).array('files')
+
+// 上传图片
+export const uploadImages = async (req, res, next) => {
+  try {
+    // 使用 Promise 包装 multer 中间件
+    await new Promise((resolve, reject) => {
+      upload(req, res, (err) => {
+        if (err instanceof multer.MulterError) {
+          reject(new AppError(err.message, 400))
+        } else if (err) {
+          reject(err)
+        }
+        resolve()
+      })
     })
+    
+    if (!req.files?.length) {
+      throw new AppError('请选择要上传的图片', 400)
+    }
+    
+    // 上传到 OSS
+    const urls = await Promise.all(
+      req.files.map(file => uploadToOSS(file))
+    )
+    
+    res.json({
+      code: 200,
+      data: {
+        urls
+      }
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+// 上传单张图片
+export const uploadImage = async (req, res, next) => {
+  try {
+    const singleUpload = multer({
+      storage,
+      limits: {
+        fileSize: 2 * 1024 * 1024 // 限制 2MB
+      },
+      fileFilter: (req, file, cb) => {
+        if (!file.mimetype.startsWith('image/')) {
+          cb(new AppError('只能上传图片文件', 400), false)
+        } else {
+          cb(null, true)
+        }
+      }
+    }).single('file')
+    
+    await new Promise((resolve, reject) => {
+      singleUpload(req, res, (err) => {
+        if (err instanceof multer.MulterError) {
+          reject(new AppError(err.message, 400))
+        } else if (err) {
+          reject(err)
+        }
+        resolve()
+      })
+    })
+    
+    if (!req.file) {
+      throw new AppError('请选择要上传的图片', 400)
+    }
+    
+    // 上传到 OSS
+    const url = await uploadToOSS(req.file)
+    
+    res.json({
+      code: 200,
+      data: {
+        url
+      }
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+// 获取上传 Token
+export const getUploadToken = async (req, res, next) => {
+  try {
+    // 生成临时上传凭证
+    const token = {
+      accessKeyId: config.aliyun.accessKeyId,
+      accessKeySecret: config.aliyun.accessKeySecret,
+      stsToken: '', // 如果使用 STS，这里需要调用 STS 服务获取临时凭证
+      region: config.aliyun.oss.region,
+      bucket: config.aliyun.oss.bucket,
+      expires: Date.now() + 3600 * 1000 // 1小时有效期
+    }
+    
+    res.json({
+      code: 200,
+      data: token
+    })
+  } catch (error) {
+    next(error)
   }
 } 

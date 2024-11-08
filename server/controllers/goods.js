@@ -1,23 +1,39 @@
 import Goods from '../models/goods.js'
+import { AppError } from '../middlewares/error.js'
 
 // 获取商品列表
-export const getGoodsList = async (req, res) => {
+export const getGoodsList = async (req, res, next) => {
   try {
-    const { pageNum = 1, pageSize = 10, category, keyword } = req.query
+    const { pageNum = 1, pageSize = 10, category, keyword, sort } = req.query
     
-    const query = {}
-    if (category) {
-      query.category = category
-    }
-    if (keyword) {
-      query.title = new RegExp(keyword, 'i')
+    // 构建查询条件
+    const query = { status: 1 }
+    if (category) query.category = category
+    if (keyword) query.title = new RegExp(keyword, 'i')
+    
+    // 构建排序条件
+    let sortOption = {}
+    switch (sort) {
+      case 'price-asc':
+        sortOption.price = 1
+        break
+      case 'price-desc':
+        sortOption.price = -1
+        break
+      case 'sales':
+        sortOption.sales = -1
+        break
+      default:
+        sortOption.createdAt = -1
     }
     
+    // 查询商品
     const total = await Goods.countDocuments(query)
     const list = await Goods.find(query)
+      .populate('category', 'name')
+      .sort(sortOption)
       .skip((pageNum - 1) * pageSize)
       .limit(pageSize)
-      .sort({ createdAt: -1 })
     
     res.json({
       code: 200,
@@ -29,23 +45,18 @@ export const getGoodsList = async (req, res) => {
       }
     })
   } catch (error) {
-    console.error('获取商品列表失败:', error)
-    res.status(500).json({
-      code: 500,
-      message: '获取商品列表失败'
-    })
+    next(error)
   }
 }
 
 // 获取商品详情
-export const getGoodsDetail = async (req, res) => {
+export const getGoodsDetail = async (req, res, next) => {
   try {
     const goods = await Goods.findById(req.params.id)
+      .populate('category', 'name')
+    
     if (!goods) {
-      return res.status(404).json({
-        code: 404,
-        message: '商品不存在'
-      })
+      throw new AppError('商品不存在', 404)
     }
     
     res.json({
@@ -53,80 +64,57 @@ export const getGoodsDetail = async (req, res) => {
       data: goods
     })
   } catch (error) {
-    console.error('获取商品详情失败:', error)
-    res.status(500).json({
-      code: 500,
-      message: '获取商品详情失败'
-    })
+    next(error)
   }
 }
 
-// 创建商品
-export const createGoods = async (req, res) => {
+// 获取推荐商品
+export const getRecommendGoods = async (req, res, next) => {
   try {
-    const goods = await Goods.create(req.body)
+    const { id } = req.query
+    
+    // 获取当前商品的分类
+    const goods = await Goods.findById(id)
+    if (!goods) {
+      throw new AppError('商品不存在', 404)
+    }
+    
+    // 查询同分类的其他商品
+    const list = await Goods.find({
+      category: goods.category,
+      _id: { $ne: id },
+      status: 1
+    })
+    .limit(10)
+    .sort('-sales')
+    
     res.json({
       code: 200,
-      data: goods
+      data: list
     })
   } catch (error) {
-    console.error('创建商品失败:', error)
-    res.status(500).json({
-      code: 500,
-      message: '创建商品失败'
-    })
+    next(error)
   }
 }
 
-// 更新商品
-export const updateGoods = async (req, res) => {
+// 检查商品库存
+export const checkGoodsStock = async (req, res, next) => {
   try {
-    const goods = await Goods.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    )
+    const { ids } = req.body
     
-    if (!goods) {
-      return res.status(404).json({
-        code: 404,
-        message: '商品不存在'
-      })
+    const stockInfo = {}
+    for (const id of ids) {
+      const goods = await Goods.findById(id)
+      if (goods) {
+        stockInfo[id] = goods.stock
+      }
     }
     
     res.json({
       code: 200,
-      data: goods
+      data: stockInfo
     })
   } catch (error) {
-    console.error('更新商品失败:', error)
-    res.status(500).json({
-      code: 500,
-      message: '更新商品失败'
-    })
-  }
-}
-
-// 删除商品
-export const deleteGoods = async (req, res) => {
-  try {
-    const goods = await Goods.findByIdAndDelete(req.params.id)
-    if (!goods) {
-      return res.status(404).json({
-        code: 404,
-        message: '商品不存在'
-      })
-    }
-    
-    res.json({
-      code: 200,
-      message: '删除成功'
-    })
-  } catch (error) {
-    console.error('删除商品失败:', error)
-    res.status(500).json({
-      code: 500,
-      message: '删除商品失败'
-    })
+    next(error)
   }
 } 

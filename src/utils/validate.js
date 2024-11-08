@@ -21,4 +21,28 @@ export const isIdCard = (value) => {
 // 金额验证（最多两位小数）
 export const isAmount = (value) => {
   return /^(([1-9]\d*)|\d)(\.\d{1,2})?$/.test(value)
+}
+
+// 表单验证规则
+export const rules = {
+  phone: [
+    { required: true, message: '请输入手机号' },
+    { validator: isPhone, message: '手机号格式不正确' }
+  ],
+  email: [
+    { required: true, message: '请输入邮箱' },
+    { validator: isEmail, message: '邮箱格式不正确' }
+  ],
+  password: [
+    { required: true, message: '请输入密码' },
+    { validator: isPassword, message: '密码必须包含数字和字母，且不少于6位' }
+  ],
+  idCard: [
+    { required: true, message: '请输入身份证号' },
+    { validator: isIdCard, message: '身份证号格式不正确' }
+  ],
+  amount: [
+    { required: true, message: '请输入金额' },
+    { validator: isAmount, message: '金额格式不正确' }
+  ]
 } 

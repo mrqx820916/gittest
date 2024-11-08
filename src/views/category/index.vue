@@ -4,13 +4,13 @@
     <van-search
       v-model="keyword"
       placeholder="请输入搜索关键词"
-      shape="round"
-      @focus="onSearchFocus"
+      readonly
+      @click="onSearch"
     />
     
     <div class="container">
       <!-- 左侧分类导航 -->
-      <van-sidebar v-model="activeIndex">
+      <van-sidebar v-model="activeCategory" class="sidebar">
         <van-sidebar-item
           v-for="item in categories"
           :key="item.id"
@@ -27,21 +27,18 @@
             finished-text="没有更多了"
             @load="onLoad"
           >
-            <van-card
-              v-for="item in goodsList"
-              :key="item.id"
-              :price="item.price"
-              :title="item.title"
-              :thumb="item.thumb"
-              @click="onGoodsClick(item)"
-            >
-              <template #tags>
-                <van-tag plain type="danger" v-if="item.tag">{{ item.tag }}</van-tag>
-              </template>
-              <template #footer>
-                <van-button size="mini" @click.stop="addToCart(item)">加入购物车</van-button>
-              </template>
-            </van-card>
+            <van-grid :column-num="2" :gutter="10">
+              <van-grid-item
+                v-for="item in goodsList"
+                :key="item.id"
+              >
+                <goods-card
+                  :goods="item"
+                  @click="onGoodsClick(item)"
+                  @add-cart="onAddCart"
+                />
+              </van-grid-item>
+            </van-grid>
           </van-list>
         </van-pull-refresh>
       </div>
@@ -51,34 +48,25 @@
 
 <script setup>
 import { ref, watch, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { showToast } from 'vant'
-import { useCartStore } from '@/store'
-import { getCategoryList } from '@/api/category'
-import { getGoodsList } from '@/api/goods'
+import { getCategories, getGoodsList } from '@/api/goods'
+import GoodsCard from '@/components/goods-card/index.vue'
 
 const router = useRouter()
-const cartStore = useCartStore()
+const route = useRoute()
 
 // 搜索相关
 const keyword = ref('')
-const onSearchFocus = () => {
+const onSearch = () => {
   router.push('/search')
 }
 
-// 分类相关
+// 分类数据
 const categories = ref([])
-const activeIndex = ref(0)
+const activeCategory = ref(0)
 
-const loadCategories = async () => {
-  try {
-    categories.value = await getCategoryList()
-  } catch (error) {
-    console.error('加载分类失败:', error)
-  }
-}
-
-// 商品列表相关
+// 商品列表
 const goodsList = ref([])
 const loading = ref(false)
 const finished = ref(false)
@@ -86,11 +74,30 @@ const refreshing = ref(false)
 const pageNum = ref(1)
 const pageSize = 10
 
-const loadGoods = async () => {
+// 加载分类
+const loadCategories = async () => {
   try {
-    const currentCategory = categories.value[activeIndex.value]
-    if (!currentCategory) return
+    const res = await getCategories()
+    categories.value = res
     
+    // 如果有 id 参数，设置对应的分类
+    if (route.query.id) {
+      const index = categories.value.findIndex(item => item.id === route.query.id)
+      if (index > -1) {
+        activeCategory.value = index
+      }
+    }
+  } catch (error) {
+    console.error('获取分类失败:', error)
+  }
+}
+
+// 加载商品
+const loadGoods = async () => {
+  if (!categories.value.length) return
+  
+  try {
+    const currentCategory = categories.value[activeCategory.value]
     const res = await getGoodsList({
       category: currentCategory.id,
       pageNum: pageNum.value,
@@ -109,49 +116,47 @@ const loadGoods = async () => {
       finished.value = true
     }
   } catch (error) {
-    console.error('加载商品列表失败:', error)
+    console.error('获取商品列表失败:', error)
   } finally {
     loading.value = false
   }
 }
 
-const onLoad = () => {
-  loadGoods()
-}
-
+// 下拉刷新
 const onRefresh = () => {
   finished.value = false
   pageNum.value = 1
   loadGoods()
 }
 
-// 商品相关
+// 加载更多
+const onLoad = () => {
+  if (refreshing.value) {
+    return
+  }
+  loadGoods()
+}
+
+// 商品点击
 const onGoodsClick = (goods) => {
   router.push(`/goods/${goods.id}`)
 }
 
-const addToCart = (goods) => {
-  cartStore.addToCart({
-    id: goods.id,
-    title: goods.title,
-    price: goods.price,
-    thumb: goods.thumb,
-    quantity: 1
-  })
-  showToast('已加入购物车')
+const onAddCart = (goods) => {
+  router.push(`/goods/${goods.id}`)
 }
 
 // 监听分类切换
-watch(activeIndex, () => {
+watch(activeCategory, () => {
   pageNum.value = 1
   finished.value = false
   goodsList.value = []
   loadGoods()
 })
 
-// 初始化数据
-onMounted(async () => {
-  await loadCategories()
+// 初始化
+onMounted(() => {
+  loadCategories()
 })
 </script>
 
@@ -159,28 +164,21 @@ onMounted(async () => {
 .category {
   min-height: 100vh;
   background: #f5f5f5;
-  padding-bottom: 50px;
   
   .container {
     display: flex;
-    height: calc(100vh - 54px - 50px);
+    height: calc(100vh - 54px);
     
-    .van-sidebar {
+    .sidebar {
+      flex: none;
       width: 85px;
-      height: 100%;
-      overflow-y: auto;
+      background: #fff;
     }
     
     .content {
       flex: 1;
-      height: 100%;
       overflow-y: auto;
-      padding: 10px;
-      
-      .van-card {
-        margin-bottom: 10px;
-        background: #fff;
-      }
+      padding: 12px;
     }
   }
 }

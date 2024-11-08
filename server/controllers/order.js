@@ -1,28 +1,55 @@
 import Order from '../models/order.js'
+import Goods from '../models/goods.js'
 import { AppError } from '../middlewares/error.js'
-import {
-  generateOrderNo,
-  calculateOrderAmount,
-  validateOrderStatus
-} from '../utils/order.js'
+import { generateOrderNo } from '../utils/index.js'
 
 // 创建订单
 export const createOrder = async (req, res, next) => {
   try {
-    const { goods, address, deliveryFee, discount, remark } = req.body
+    const {
+      goods,
+      address,
+      deliveryType,
+      couponId,
+      remark,
+      totalPrice,
+      deliveryFee,
+      discountAmount,
+      finalPrice
+    } = req.body
     
-    // 计算订单金额
-    const amount = calculateOrderAmount(goods, deliveryFee, discount)
+    // 检查商品库存
+    for (const item of goods) {
+      const goodsInfo = await Goods.findById(item.id)
+      if (!goodsInfo || goodsInfo.stock < item.quantity) {
+        throw new AppError(`商品 ${goodsInfo?.title || item.id} 库存不足`, 400)
+      }
+    }
     
     // 创建订单
     const order = await Order.create({
-      orderNo: generateOrderNo(),
       user: req.user.id,
+      orderNo: generateOrderNo(),
       goods,
       address,
-      ...amount,
-      remark
+      deliveryType,
+      couponId,
+      remark,
+      totalPrice,
+      deliveryFee,
+      discountAmount,
+      finalPrice,
+      status: 1 // 待付款
     })
+    
+    // 扣减库存
+    for (const item of goods) {
+      await Goods.findByIdAndUpdate(item.id, {
+        $inc: {
+          stock: -item.quantity
+        }
+      })
+    }
     
     res.json({
       code: 200,
@@ -36,16 +63,15 @@ export const createOrder = async (req, res, next) => {
 // 获取订单列表
 export const getOrderList = async (req, res, next) => {
   try {
-    const { status, pageNum = 1, pageSize = 10 } = req.query
+    const { type = 0, pageNum = 1, pageSize = 10 } = req.query
     
+    // 构建查询条件
     const query = { user: req.user.id }
-    if (status) {
-      query.status = Number(status)
-    }
+    if (type > 0) query.status = type
     
     const total = await Order.countDocuments(query)
     const list = await Order.find(query)
-      .sort({ createdAt: -1 })
+      .sort('-createdAt')
       .skip((pageNum - 1) * pageSize)
       .limit(pageSize)
     
@@ -84,40 +110,35 @@ export const getOrderDetail = async (req, res, next) => {
   }
 }
 
-// 更新订单状态
-export const updateOrderStatus = async (req, res, next) => {
+// 取消订单
+export const cancelOrder = async (req, res, next) => {
   try {
-    const { status } = req.body
     const order = await Order.findOne({
       _id: req.params.id,
-      user: req.user.id
+      user: req.user.id,
+      status: 1 // 只能取消待付款订单
     })
     
     if (!order) {
-      throw new AppError('订单不存在', 404)
+      throw new AppError('订单不存在或无法取消', 400)
     }
     
-    if (!validateOrderStatus(order.status, status)) {
-      throw new AppError('非法的状态转换', 400)
-    }
+    // 更新订单状态
+    order.status = 6 // 已取消
+    await order.save()
     
-    // 更新状态和相应的时间字段
-    const update = { status }
-    if (status === 4) {
-      update.completedTime = new Date()
-    } else if (status === 6) {
-      update.canceledTime = new Date()
+    // 恢复库存
+    for (const item of order.goods) {
+      await Goods.findByIdAndUpdate(item.id, {
+        $inc: {
+          stock: item.quantity
+        }
+      })
     }
-    
-    const updatedOrder = await Order.findByIdAndUpdate(
-      order._id,
-      update,
-      { new: true }
-    )
     
     res.json({
       code: 200,
-      data: updatedOrder
+      data: order
     })
   } catch (error) {
     next(error)
@@ -128,63 +149,35 @@ export const updateOrderStatus = async (req, res, next) => {
 export const payOrder = async (req, res, next) => {
   try {
     const { paymentMethod } = req.body
+    
     const order = await Order.findOne({
       _id: req.params.id,
       user: req.user.id,
-      status: 1
+      status: 1 // 待付款
     })
     
     if (!order) {
-      throw new AppError('订单不存在或无法支付', 400)
+      throw new AppError('订单不存在或已支付', 400)
     }
     
-    // TODO: 调用支付接口
+    // 更新订单状态
+    order.status = 2 // 待发货
+    order.paymentMethod = paymentMethod
+    order.paymentTime = new Date()
+    await order.save()
     
-    const updatedOrder = await Order.findByIdAndUpdate(
-      order._id,
-      {
-        status: 2,
-        paymentMethod,
-        paymentTime: new Date()
-      },
-      { new: true }
-    )
+    // 更新商品销量
+    for (const item of order.goods) {
+      await Goods.findByIdAndUpdate(item.id, {
+        $inc: {
+          sales: item.quantity
+        }
+      })
+    }
     
     res.json({
       code: 200,
-      data: updatedOrder
-    })
-  } catch (error) {
-    next(error)
-  }
-}
-
-// 发货
-export const deliverOrder = async (req, res, next) => {
-  try {
-    const { company, trackingNo } = req.body
-    const order = await Order.findOne({
-      _id: req.params.id,
-      status: 2
-    })
-    
-    if (!order) {
-      throw new AppError('订单不存在或无法发货', 400)
-    }
-    
-    const updatedOrder = await Order.findByIdAndUpdate(
-      order._id,
-      {
-        status: 3,
-        deliveryTime: new Date(),
-        logistics: { company, trackingNo }
-      },
-      { new: true }
-    )
-    
-    res.json({
-      code: 200,
-      data: updatedOrder
+      data: order
     })
   } catch (error) {
     next(error)
@@ -194,27 +187,71 @@ export const deliverOrder = async (req, res, next) => {
 // 确认收货
 export const confirmOrder = async (req, res, next) => {
   try {
-    const order = await Order.findOne({
-      _id: req.params.id,
-      user: req.user.id,
-      status: 3
-    })
+    const order = await Order.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        user: req.user.id,
+        status: 3 // 待收货
+      },
+      {
+        status: 4, // 待评价
+        completedTime: new Date()
+      },
+      { new: true }
+    )
     
     if (!order) {
       throw new AppError('订单不存在或无法确认收货', 400)
     }
     
-    const updatedOrder = await Order.findByIdAndUpdate(
-      order._id,
-      {
-        status: 4
-      },
-      { new: true }
-    )
+    res.json({
+      code: 200,
+      data: order
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+// 获取订单状态数量统计
+export const getOrderStatusCount = async (req, res, next) => {
+  try {
+    const counts = await Order.aggregate([
+      { $match: { user: req.user.id } },
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ])
+    
+    const result = {
+      unpaid: 0, // 待付款
+      unshipped: 0, // 待发货
+      unreceived: 0, // 待收货
+      uncommented: 0, // 待评价
+      refunding: 0 // 退款中
+    }
+    
+    counts.forEach(({ _id, count }) => {
+      switch (_id) {
+        case 1:
+          result.unpaid = count
+          break
+        case 2:
+          result.unshipped = count
+          break
+        case 3:
+          result.unreceived = count
+          break
+        case 4:
+          result.uncommented = count
+          break
+        case 7:
+          result.refunding = count
+          break
+      }
+    })
     
     res.json({
       code: 200,
-      data: updatedOrder
+      data: result
     })
   } catch (error) {
     next(error)

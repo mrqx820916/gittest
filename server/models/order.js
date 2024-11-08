@@ -1,16 +1,15 @@
 import mongoose from 'mongoose'
-import { ORDER_STATUS } from '../utils/order.js'
 
 const orderSchema = new mongoose.Schema({
-  orderNo: {
-    type: String,
-    required: true,
-    unique: true
-  },
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
+  },
+  orderNo: {
+    type: String,
+    required: true,
+    unique: true
   },
   goods: [{
     id: {
@@ -18,77 +17,37 @@ const orderSchema = new mongoose.Schema({
       ref: 'Goods',
       required: true
     },
-    title: {
-      type: String,
-      required: true
-    },
-    price: {
-      type: Number,
-      required: true
-    },
-    quantity: {
-      type: Number,
-      required: true,
-      min: 1
-    },
-    specs: {
-      type: Map,
-      of: String
-    },
-    thumb: String
+    title: String,
+    price: Number,
+    thumb: String,
+    quantity: Number,
+    specs: Object
   }],
   address: {
-    name: {
-      type: String,
-      required: true
-    },
-    tel: {
-      type: String,
-      required: true
-    },
-    province: {
-      type: String,
-      required: true
-    },
-    city: {
-      type: String,
-      required: true
-    },
-    county: {
-      type: String,
-      required: true
-    },
-    addressDetail: {
-      type: String,
-      required: true
-    }
+    name: String,
+    tel: String,
+    province: String,
+    city: String,
+    county: String,
+    addressDetail: String,
+    areaCode: String
   },
-  totalPrice: {
-    type: Number,
-    required: true
-  },
-  deliveryFee: {
-    type: Number,
-    default: 0
-  },
+  totalPrice: Number,
+  deliveryFee: Number,
   discountAmount: {
     type: Number,
     default: 0
   },
-  finalPrice: {
-    type: Number,
-    required: true
-  },
-  status: {
-    type: Number,
-    enum: Object.keys(ORDER_STATUS).map(Number),
-    default: 1
-  },
+  finalPrice: Number,
   paymentMethod: String,
   paymentTime: Date,
   deliveryTime: Date,
   completedTime: Date,
-  canceledTime: Date,
+  status: {
+    type: Number,
+    enum: [1, 2, 3, 4, 5, 6], // 1: 待付款, 2: 待发货, 3: 待收货, 4: 待评价, 5: 已完成, 6: 已取消
+    default: 1
+  },
   remark: String,
   logistics: {
     company: String,
@@ -98,9 +57,19 @@ const orderSchema = new mongoose.Schema({
   timestamps: true
 })
 
-// 添加索引
-orderSchema.index({ user: 1, createdAt: -1 })
-orderSchema.index({ orderNo: 1 })
-orderSchema.index({ status: 1 })
+// 生成订单号
+orderSchema.pre('save', function(next) {
+  if (this.isNew) {
+    const date = new Date()
+    this.orderNo = date.getFullYear().toString() +
+      (date.getMonth() + 1).toString().padStart(2, '0') +
+      date.getDate().toString().padStart(2, '0') +
+      date.getHours().toString().padStart(2, '0') +
+      date.getMinutes().toString().padStart(2, '0') +
+      date.getSeconds().toString().padStart(2, '0') +
+      Math.floor(Math.random() * 1000).toString().padStart(3, '0')
+  }
+  next()
+})
 
 export default mongoose.model('Order', orderSchema) 

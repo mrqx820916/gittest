@@ -13,16 +13,19 @@ const userCouponSchema = new mongoose.Schema({
   },
   status: {
     type: Number,
-    default: 1  // 1: 未使用, 2: 已使用, 3: 已过期
+    enum: [1, 2, 3], // 1: 未使用, 2: 已使用, 3: 已过期
+    default: 1
   },
   usedTime: Date,
-  orderId: mongoose.Schema.Types.ObjectId
+  order: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Order'
+  }
 }, {
   timestamps: true
 })
 
-// 添加索引
-userCouponSchema.index({ user: 1, status: 1 })
-userCouponSchema.index({ coupon: 1 })
+// 创建联合索引
+userCouponSchema.index({ user: 1, coupon: 1 }, { unique: true })
 
 export default mongoose.model('UserCoupon', userCouponSchema) 

@@ -1,18 +1,23 @@
 <template>
   <div class="search">
+    <!-- 搜索栏 -->
     <van-search
       v-model="keyword"
-      show-action
       placeholder="请输入搜索关键词"
+      show-action
       @search="onSearch"
       @cancel="onCancel"
-    />
+    >
+      <template #action>
+        <div @click="onCancel">取消</div>
+      </template>
+    </van-search>
     
     <!-- 搜索历史 -->
-    <div class="history" v-if="!keyword && searchHistory.length">
+    <div v-if="!keyword && searchHistory.length" class="search-history">
       <div class="header">
         <span>搜索历史</span>
-        <van-icon name="delete-o" @click="clearHistory" />
+        <van-icon name="delete" @click="clearHistory" />
       </div>
       <div class="tags">
         <van-tag
@@ -29,27 +34,27 @@
     </div>
     
     <!-- 搜索结果 -->
-    <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
+    <div v-if="keyword" class="search-result">
       <van-list
         v-model:loading="loading"
         :finished="finished"
         finished-text="没有更多了"
         @load="onLoad"
       >
-        <van-card
-          v-for="item in goodsList"
-          :key="item.id"
-          :price="item.price"
-          :title="item.title"
-          :thumb="item.thumb"
-          @click="onGoodsClick(item)"
-        >
-          <template #footer>
-            <van-button size="mini" @click.stop="addToCart(item)">加入购物车</van-button>
-          </template>
-        </van-card>
+        <van-grid :column-num="2" :gutter="10">
+          <van-grid-item
+            v-for="item in goodsList"
+            :key="item.id"
+          >
+            <goods-card
+              :goods="item"
+              @click="onGoodsClick(item)"
+              @add-cart="onAddCart"
+            />
+          </van-grid-item>
+        </van-grid>
       </van-list>
-    </van-pull-refresh>
+    </div>
   </div>
 </template>
 
@@ -57,73 +62,66 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
-import { useCartStore } from '@/store'
-import { searchGoods } from '@/api/goods'
+import { getStorage, setStorage } from '@/utils/storage'
+import { getGoodsList } from '@/api/goods'
+import GoodsCard from '@/components/goods-card/index.vue'
 
 const router = useRouter()
-const cartStore = useCartStore()
+
+// 搜索关键词
 const keyword = ref('')
 const searchHistory = ref([])
+
+// 商品列表
 const goodsList = ref([])
 const loading = ref(false)
 const finished = ref(false)
-const refreshing = ref(false)
 const pageNum = ref(1)
 const pageSize = 10
 
-onMounted(() => {
-  loadSearchHistory()
-})
-
+// 加载搜索历史
 const loadSearchHistory = () => {
-  const history = localStorage.getItem('searchHistory')
-  if (history) {
-    searchHistory.value = JSON.parse(history)
-  }
+  searchHistory.value = getStorage('searchHistory') || []
 }
 
+// 保存搜索历史
 const saveSearchHistory = (keyword) => {
   const history = new Set([keyword, ...searchHistory.value])
   searchHistory.value = Array.from(history).slice(0, 10)
-  localStorage.setItem('searchHistory', JSON.stringify(searchHistory.value))
+  setStorage('searchHistory', searchHistory.value)
 }
 
+// 清空搜索历史
 const clearHistory = () => {
   searchHistory.value = []
-  localStorage.removeItem('searchHistory')
+  setStorage('searchHistory', [])
 }
 
-const onSearch = (value) => {
-  if (!value.trim()) return
-  keyword.value = value
-  saveSearchHistory(value)
+// 搜索商品
+const onSearch = () => {
+  if (!keyword.value) {
+    showToast('请输入搜索关键词')
+    return
+  }
+  
+  saveSearchHistory(keyword.value)
   pageNum.value = 1
   finished.value = false
   goodsList.value = []
-  onLoad()
+  loadGoods()
 }
 
-const onCancel = () => {
-  router.back()
-}
-
-const onHistoryClick = (value) => {
-  keyword.value = value
-  onSearch(value)
-}
-
-const onLoad = async () => {
+// 加载商品
+const loadGoods = async () => {
+  if (!keyword.value) return
+  
   try {
-    const res = await searchGoods({
+    loading.value = true
+    const res = await getGoodsList({
       keyword: keyword.value,
       pageNum: pageNum.value,
       pageSize
     })
-    
-    if (refreshing.value) {
-      goodsList.value = []
-      refreshing.value = false
-    }
     
     goodsList.value.push(...res.list)
     pageNum.value++
@@ -138,26 +136,30 @@ const onLoad = async () => {
   }
 }
 
-const onRefresh = () => {
-  pageNum.value = 1
-  finished.value = false
-  onLoad()
+// 取消搜索
+const onCancel = () => {
+  router.back()
 }
 
+// 点击历史记录
+const onHistoryClick = (item) => {
+  keyword.value = item
+  onSearch()
+}
+
+// 商品点击
 const onGoodsClick = (goods) => {
   router.push(`/goods/${goods.id}`)
 }
 
-const addToCart = (goods) => {
-  cartStore.addToCart({
-    id: goods.id,
-    title: goods.title,
-    price: goods.price,
-    thumb: goods.thumb,
-    quantity: 1
-  })
-  showToast('已加入购物车')
+const onAddCart = (goods) => {
+  router.push(`/goods/${goods.id}`)
 }
+
+// 初始化
+onMounted(() => {
+  loadSearchHistory()
+})
 </script>
 
 <style scoped lang="scss">
@@ -165,16 +167,15 @@ const addToCart = (goods) => {
   min-height: 100vh;
   background: #f5f5f5;
   
-  .history {
+  .search-history {
     background: #fff;
-    padding: 15px;
-    margin-bottom: 10px;
+    padding: 12px;
     
     .header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
       
       span {
         font-size: 14px;
@@ -185,13 +186,12 @@ const addToCart = (goods) => {
     .tags {
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
+      gap: 8px;
     }
   }
   
-  .van-card {
-    margin-bottom: 10px;
-    background: #fff;
+  .search-result {
+    padding: 12px;
   }
 }
 </style> 

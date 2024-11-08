@@ -27,7 +27,10 @@ import { useCartStore } from '@/store'
 const route = useRoute()
 const cartStore = useCartStore()
 
+// 当前激活的标签页
 const active = ref(0)
+
+// 购物车商品数量
 const cartCount = computed(() => cartStore.totalCount)
 </script>
 
@@ -42,15 +45,5 @@ const cartCount = computed(() => cartStore.totalCount)
     overflow-y: auto;
     background: #f5f5f5;
   }
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
 }
 </style> 

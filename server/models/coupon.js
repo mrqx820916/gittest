@@ -7,16 +7,16 @@ const couponSchema = new mongoose.Schema({
   },
   type: {
     type: Number,
-    required: true,
     enum: [1, 2], // 1: 满减券, 2: 折扣券
+    required: true
   },
-  value: {
+  amount: {
     type: Number,
-    required: true  // 满减金额或折扣率(0-100)
+    required: true
   },
-  minAmount: {
+  condition: {
     type: Number,
-    default: 0  // 最低使用金额
+    required: true
   },
   startTime: {
     type: Date,
@@ -28,22 +28,32 @@ const couponSchema = new mongoose.Schema({
   },
   total: {
     type: Number,
-    required: true  // 发放总量
+    required: true
   },
   used: {
     type: Number,
-    default: 0  // 已使用数量
+    default: 0
   },
+  perLimit: {
+    type: Number,
+    default: 1
+  },
+  categories: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Category'
+  }],
+  goods: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Goods'
+  }],
+  code: String,
   status: {
     type: Number,
-    default: 1  // 1: 正常, 0: 禁用
-  },
-  description: String
+    enum: [0, 1], // 0: 停用, 1: 启用
+    default: 1
+  }
 }, {
   timestamps: true
 })
-
-// 添加索引
-couponSchema.index({ status: 1, startTime: 1, endTime: 1 })
 
 export default mongoose.model('Coupon', couponSchema) 

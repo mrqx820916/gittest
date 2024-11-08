@@ -7,19 +7,19 @@
     />
     
     <van-tabs v-model:active="active" sticky>
-      <van-tab title="全部">
+      <van-tab title="全部" name="0">
         <order-list-content :type="0" />
       </van-tab>
-      <van-tab title="待付款">
+      <van-tab title="待付款" name="1">
         <order-list-content :type="1" />
       </van-tab>
-      <van-tab title="待发货">
+      <van-tab title="待发货" name="2">
         <order-list-content :type="2" />
       </van-tab>
-      <van-tab title="待收货">
+      <van-tab title="待收货" name="3">
         <order-list-content :type="3" />
       </van-tab>
-      <van-tab title="待评价">
+      <van-tab title="待评价" name="4">
         <order-list-content :type="4" />
       </van-tab>
     </van-tabs>
@@ -33,7 +33,7 @@ import OrderListContent from './components/OrderListContent.vue'
 
 const router = useRouter()
 const route = useRoute()
-const active = ref(Number(route.query.type) || 0)
+const active = ref(route.query.type || '0')
 
 const onClickLeft = () => {
   router.back()

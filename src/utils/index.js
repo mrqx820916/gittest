@@ -5,6 +5,7 @@ export const formatPrice = (price) => {
 
 // 格式化日期
 export const formatDate = (date, format = 'YYYY-MM-DD HH:mm:ss') => {
+  if (!date) return ''
   const d = new Date(date)
   const year = d.getFullYear()
   const month = String(d.getMonth() + 1).padStart(2, '0')
@@ -20,6 +21,25 @@ export const formatDate = (date, format = 'YYYY-MM-DD HH:mm:ss') => {
     .replace('HH', hour)
     .replace('mm', minute)
     .replace('ss', second)
+}
+
+// 格式化手机号
+export const formatPhone = (phone) => {
+  return phone?.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')
+}
+
+// 格式化地址
+export const formatAddress = (address) => {
+  if (!address) return ''
+  return `${address.province}${address.city}${address.county}${address.addressDetail}`
+}
+
+// 格式化商品规格
+export const formatSpecs = (specs) => {
+  if (!specs) return ''
+  return Object.entries(specs)
+    .map(([key, value]) => `${key}:${value}`)
+    .join('; ')
 }
 
 // 防抖函数
@@ -55,4 +75,27 @@ export const deepClone = (obj) => {
     }
   }
   return clone
+}
+
+// 获取图片完整路径
+export const getImageUrl = (url) => {
+  if (!url) return ''
+  if (url.startsWith('http')) return url
+  return `${import.meta.env.VITE_APP_IMAGE_URL}${url}`
+}
+
+// 获取文件扩展名
+export const getFileExt = (filename) => {
+  return filename.substring(filename.lastIndexOf('.') + 1)
+}
+
+// 检查文件类型
+export const checkFileType = (file, types) => {
+  const ext = getFileExt(file.name).toLowerCase()
+  return types.includes(ext)
+}
+
+// 检查文件大小
+export const checkFileSize = (file, maxSize) => {
+  return file.size <= maxSize * 1024 * 1024
 } 

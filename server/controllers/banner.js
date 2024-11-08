@@ -2,21 +2,13 @@ import Banner from '../models/banner.js'
 import { AppError } from '../middlewares/error.js'
 
 // 获取轮播图列表
-export const getBannerList = async (req, res, next) => {
+export const getBanners = async (req, res, next) => {
   try {
-    const { status } = req.query
-    
-    const query = {}
-    if (status !== undefined) {
-      query.status = Number(status)
-    }
-    
-    const list = await Banner.find(query)
-      .sort({ sort: 1, createdAt: -1 })
+    const banners = await Banner.find({ status: 1 }).sort('sort')
     
     res.json({
       code: 200,
-      data: list
+      data: banners
     })
   } catch (error) {
     next(error)

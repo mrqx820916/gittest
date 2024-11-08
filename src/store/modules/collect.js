@@ -1,29 +1,37 @@
 import { defineStore } from 'pinia'
-import { getCollectList, addCollect, cancelCollect } from '@/api/collect'
+import { getStorage, setStorage } from '@/utils/storage'
+import { addCollect, cancelCollect, getCollectList } from '@/api/user'
 
 export const useCollectStore = defineStore('collect', {
   state: () => ({
-    collectList: []
+    collectList: getStorage('collectList') || []
   }),
   
+  getters: {
+    isCollected: (state) => (id) => {
+      return state.collectList.some(item => item.id === id)
+    }
+  },
+  
   actions: {
-    async getCollectList(params) {
-      const res = await getCollectList(params)
-      this.collectList = res.list
-      return res
+    async loadCollectList() {
+      try {
+        const list = await getCollectList()
+        this.collectList = list
+        setStorage('collectList', list)
+      } catch (error) {
+        console.error('获取收藏列表失败:', error)
+      }
     },
     
     async addCollect(id) {
       await addCollect(id)
-      await this.getCollectList()
+      await this.loadCollectList()
     },
     
     async cancelCollect(id) {
       await cancelCollect(id)
-      const index = this.collectList.findIndex(item => item.id === id)
-      if (index > -1) {
-        this.collectList.splice(index, 1)
-      }
+      await this.loadCollectList()
     }
   }
 }) 

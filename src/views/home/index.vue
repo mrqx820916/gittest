@@ -1,25 +1,22 @@
 <template>
   <div class="home">
     <!-- 搜索栏 -->
-    <div class="search-bar">
-      <van-search
-        v-model="keyword"
-        placeholder="请输入搜索关键词"
-        shape="round"
-        background="#fff"
-        @focus="onSearchFocus"
-      />
-    </div>
+    <van-search
+      v-model="keyword"
+      placeholder="请输入搜索关键词"
+      readonly
+      @click="onSearch"
+    />
     
     <!-- 轮播图 -->
     <van-swipe class="banner" :autoplay="3000" indicator-color="white">
-      <van-swipe-item v-for="item in banners" :key="item.id">
-        <img :src="item.image" @click="onBannerClick(item)">
+      <van-swipe-item v-for="item in banners" :key="item.id" @click="onBannerClick(item)">
+        <van-image :src="item.image" fit="cover" />
       </van-swipe-item>
     </van-swipe>
     
     <!-- 分类导航 -->
-    <van-grid :column-num="5" :border="false" class="nav">
+    <van-grid :column-num="5" :border="false">
       <van-grid-item
         v-for="item in categories"
         :key="item.id"
@@ -38,21 +35,18 @@
           finished-text="没有更多了"
           @load="onLoad"
         >
-          <van-card
-            v-for="item in goodsList"
-            :key="item.id"
-            :price="item.price"
-            :title="item.title"
-            :thumb="item.thumb"
-            @click="onGoodsClick(item)"
-          >
-            <template #tags>
-              <van-tag plain type="danger" v-if="item.tag">{{ item.tag }}</van-tag>
-            </template>
-            <template #footer>
-              <van-button size="mini" @click.stop="addToCart(item)">加入购物车</van-button>
-            </template>
-          </van-card>
+          <van-grid :column-num="2" :gutter="10">
+            <van-grid-item
+              v-for="item in goodsList"
+              :key="item.id"
+            >
+              <goods-card
+                :goods="item"
+                @click="onGoodsClick(item)"
+                @add-cart="onAddCart"
+              />
+            </van-grid-item>
+          </van-grid>
         </van-list>
       </van-pull-refresh>
     </div>
@@ -63,52 +57,41 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
-import { useCartStore } from '@/store'
-import { getBannerList } from '@/api/banner'
-import { getCategoryList } from '@/api/category'
-import { getGoodsList } from '@/api/goods'
+import { getBanners } from '@/api/banner'
+import { getCategories, getGoodsList } from '@/api/goods'
+import GoodsCard from '@/components/goods-card/index.vue'
 
 const router = useRouter()
-const cartStore = useCartStore()
 
 // 搜索相关
 const keyword = ref('')
-const onSearchFocus = () => {
+const onSearch = () => {
   router.push('/search')
 }
 
-// 轮播图相关
+// 轮播图数据
 const banners = ref([])
 const loadBanners = async () => {
   try {
-    banners.value = await getBannerList()
+    const res = await getBanners()
+    banners.value = res
   } catch (error) {
-    console.error('加载轮播图失败:', error)
-  }
-}
-const onBannerClick = (banner) => {
-  if (banner.url) {
-    router.push(banner.url)
+    console.error('获取轮播图失败:', error)
   }
 }
 
-// 分类相关
+// 分类数据
 const categories = ref([])
 const loadCategories = async () => {
   try {
-    categories.value = await getCategoryList()
+    const res = await getCategories()
+    categories.value = res
   } catch (error) {
-    console.error('加载分类失败:', error)
+    console.error('获取分类失败:', error)
   }
 }
-const onCategoryClick = (category) => {
-  router.push({
-    path: '/category',
-    query: { id: category.id }
-  })
-}
 
-// 商品列表相关
+// 商品列表
 const goodsList = ref([])
 const loading = ref(false)
 const finished = ref(false)
@@ -135,44 +118,53 @@ const loadGoods = async () => {
       finished.value = true
     }
   } catch (error) {
-    console.error('加载商品列表失败:', error)
+    console.error('获取商品列表失败:', error)
   } finally {
     loading.value = false
   }
 }
 
-const onLoad = () => {
-  loadGoods()
-}
-
+// 下拉刷新
 const onRefresh = () => {
   finished.value = false
   pageNum.value = 1
   loadGoods()
 }
 
-// 商品相关
+// 加载更多
+const onLoad = () => {
+  if (refreshing.value) {
+    return
+  }
+  loadGoods()
+}
+
+// 点击事件处理
+const onBannerClick = (banner) => {
+  if (banner.url) {
+    router.push(banner.url)
+  }
+}
+
+const onCategoryClick = (category) => {
+  router.push({
+    path: '/category',
+    query: { id: category.id }
+  })
+}
+
 const onGoodsClick = (goods) => {
   router.push(`/goods/${goods.id}`)
 }
 
-const addToCart = (goods) => {
-  cartStore.addToCart({
-    id: goods.id,
-    title: goods.title,
-    price: goods.price,
-    thumb: goods.thumb,
-    quantity: 1
-  })
-  showToast('已加入购物车')
+const onAddCart = (goods) => {
+  router.push(`/goods/${goods.id}`)
 }
 
 // 初始化数据
-onMounted(async () => {
-  await Promise.all([
-    loadBanners(),
-    loadCategories()
-  ])
+onMounted(() => {
+  loadBanners()
+  loadCategories()
 })
 </script>
 
@@ -182,32 +174,17 @@ onMounted(async () => {
   background: #f5f5f5;
   padding-bottom: 50px;
   
-  .search-bar {
-    position: sticky;
-    top: 0;
-    z-index: 999;
-  }
-  
   .banner {
     height: 150px;
     
-    img {
+    .van-image {
       width: 100%;
       height: 100%;
-      object-fit: cover;
     }
-  }
-  
-  .nav {
-    background: #fff;
-    margin-bottom: 10px;
   }
   
   .goods-list {
-    .van-card {
-      margin-bottom: 10px;
-      background: #fff;
-    }
+    padding: 12px;
   }
 }
 </style> 
