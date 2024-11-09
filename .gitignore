@@ -5,7 +5,6 @@ node_modules/
 # Build output
 dist/
 build/
-.output/
 
 # Environment variables
 .env
@@ -33,56 +32,6 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Testing
-coverage/
-
 # Upload files
 uploads/*
 !uploads/.gitkeep
-
-# Cache files
-.cache/
-.temp/
-.eslintcache
-
-# Local database
-*.sqlite
-*.sqlite3
-
-# Package files
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
-
-# Temporary files
-*.tmp
-*.bak
-*.swp
-
-# Production config
-config.prod.js
-
-# OSS config
-oss.config.js
-
-# SSL certificates
-*.pem
-*.key
-*.crt
-
-# Mobile development
-.gradle/
-.idea/
-*.iml
-.expo/
-*.jks
-*.p8
-*.p12
-*.mobileprovision
-
-# Admin dashboard
-admin/dist/
-
-# Generated files
-src/auto-imports.d.ts
-src/components.d.ts 

@@ -9,7 +9,7 @@
       label-position="left"
     >
       <div class="title-container">
-        <h3 class="title">管理员登录</h3>
+        <h3 class="title">美团优选管理后台</h3>
       </div>
 
       <el-form-item prop="username">
@@ -109,7 +109,7 @@ const handleLogin = async () => {
     loading.value = true
     await formRef.value.validate()
     
-    // TODO: 调用登录 API
+    // 开发环境下的简单登录验证
     if (loginForm.username === 'admin' && loginForm.password === 'admin123') {
       localStorage.setItem('admin-token', 'admin-token')
       ElMessage.success('登录成功')

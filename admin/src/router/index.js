@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import Layout from '@/layout/index.vue'
 
 const routes = [
   {
@@ -8,14 +9,20 @@ const routes = [
   },
   {
     path: '/',
-    component: () => import('../layout/index.vue'),
+    component: Layout,
     redirect: '/dashboard',
     children: [
       {
         path: 'dashboard',
         name: 'Dashboard',
-        component: () => import('../views/dashboard/index.vue'),
-        meta: { title: '仪表盘' }
+        component: () => import('@/views/dashboard/index.vue'),
+        meta: { title: '首页' }
+      },
+      {
+        path: 'goods',
+        name: 'Goods',
+        component: () => import('../views/goods/index.vue'),
+        meta: { title: '商品管理' }
       }
     ]
   }
@@ -28,12 +35,14 @@ const router = createRouter({
 
 // 路由守卫
 router.beforeEach((to, from, next) => {
-  // 设置标题
-  document.title = to.meta.title ? `${to.meta.title} - 管理后台` : '管理后台'
-  
   // 检查登录状态
-  const isLogin = localStorage.getItem('admin-token')
-  if (to.path !== '/login' && !isLogin) {
+  const token = localStorage.getItem('admin-token')
+  
+  if (to.path === '/login' && token) {
+    // 已登录且要跳转登录页，重定向到主页
+    next('/')
+  } else if (to.path !== '/login' && !token) {
+    // 未登录且要跳转其他页面，重定向到登录页
     next('/login')
   } else {
     next()
